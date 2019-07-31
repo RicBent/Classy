@@ -10,8 +10,8 @@ class ClassyDatabase(object):
     NON_DICT_ATTRIBUTES = ['data', 'path', 'is_unsaved', 'is_open']
 
     NONE_DEFAULTS = []
-    HASH_DEFAULTS = ['classes_by_name', 'classes_by_struct', 'known_methods']
-    LIST_DEFAULTS = []
+    HASH_DEFAULTS = ['classes_by_name', 'known_methods']
+    LIST_DEFAULTS = ['root_classes']
     DEFAULTS = {}
 
     def __init__(self):

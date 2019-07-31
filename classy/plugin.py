@@ -12,6 +12,10 @@ from gui import *
 import database
 
 
+# Todo:
+#  Don't create the Classy database automaticall
+#  Check for all actions if a database is created
+
 class ClassyPlugin(idaapi.plugin_t):
     flags = idaapi.PLUGIN_PROC
     comment = ""

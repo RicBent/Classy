@@ -12,7 +12,7 @@ class Class(object):
         self.base = base
         self.derived = []
 
-        if self.base:
+        if self.base is not None:
             self.base.derived.append(self)
 
         self.methods = []
@@ -24,6 +24,8 @@ class Class(object):
 
         db = database.get()
         db.classes_by_name[name] = self
+        if self.base is None:
+            db.root_classes.append(self)
 
 
     def unlink(self):
@@ -42,6 +44,8 @@ class Class(object):
 
         db = database.get()
         del db.classes_by_name[self.name]
+        if self.base is None:
+            db.root_classes.remove(self)
 
 
     def rename(self, new_name):
@@ -122,10 +126,9 @@ class Class(object):
 
 
     def init_vtable(self):
-        idx = 0
         my_start_idx = self.vtable_start_idx()
 
-        for ea in range(self.vtable_start, self.vtable_end, 4):
+        for idx, ea in enumerate(range(self.vtable_start, self.vtable_end, 4)):
             idc.MakeDword(ea)
             idc.OpOff(ea, 0, 0)
             dst = idc.Dword(ea)
@@ -139,11 +142,9 @@ class Class(object):
                     om.refresh()
                     self.vmethods.append(om)
             else:                                                   # New virtual
-                vm = VirtualMethod(dst, self, 'vf%d' % idx)
+                vm = VirtualMethod(dst, self, 'vf%X' % (idx*4))
                 vm.refresh()
                 self.vmethods.append(vm)
-
-            idx += 1
 
 
     def iter_vtable(self):
@@ -153,6 +154,55 @@ class Class(object):
         while ea <= end:
             yield (ea, idc.Dword(ea))
             ea += 4
+
+
+    def generate_cpp_definition(self):
+        contents = []
+        contents.append('class %s%s\n{\npublic:' % (self.name, '' if self.base is None else (' : public %s' % self.base.name)))
+
+        seen_dtor = False
+
+        # Overrides
+        for idx in range(self.vtable_start_idx()):
+            vm = self.vmethods[idx]
+            if vm.owner == self and type(vm) == OverrideMethod:
+                if vm.name == '~' + self.name:
+                    if seen_dtor:
+                        continue
+                    seen_dtor = True
+                    contents.append('    virtual %s;' % vm.get_signature(include_owner=False))
+                else:
+                    contents.append('    %s override;' % vm.get_signature(include_owner=False))
+
+        if self.vtable_start_idx() > 0:
+            contents.append('')
+
+        # New virtuals
+        for idx in range(self.vtable_start_idx(), len(self.vmethods)):
+            vm = self.vmethods[idx]
+            if type(vm) == VirtualMethod:   # If this isn't the case something is very wrong
+                if vm.name == '~' + self.name:
+                    if seen_dtor:
+                        continue
+                    seen_dtor = True
+                contents.append('    virtual %s;' % vm.get_signature(include_owner=False))
+
+        if (len(self.vmethods) - self.vtable_start_idx()) > 0:
+            contents.append('')
+
+        # Methods
+        for m in self.methods:
+            if m.name == '~' + self.name:
+                if seen_dtor:
+                    continue
+                seen_dtor = True
+            contents.append('    %s;' % m.get_signature(include_owner=False))
+
+        # Todo: members of linked struct?
+
+        contents.append('};\n')
+
+        return '\n'.join(contents)
 
 
     @staticmethod
@@ -184,30 +234,30 @@ class Class(object):
         name = idaapi.askqstr('', 'Enter a class name')
         if name in database.get().classes_by_name:
             idaapi.warning('That name is already used.')
-            return
+            return None
 
         if name is None:
-            return
+            return None
 
         if not Class.s_name_is_valid(name):
             idaapi.warning('The class name "%s" is invalid.' % name)
-            return
+            return None
 
         base_class = None
         base_name = idaapi.askqstr('', 'Enter a base class name (leave empty for none)')
         if base_name is None:
-            return
+            return None
         if base_name:
             if base_name not in db.classes_by_name:
                 idaapi.warning('The class "%s" is not in the database.' % base_name)
-                return
+                return None
             else:
                 base_class = db.classes_by_name[base_name]
                 if not base_class.can_be_derived():
-                    idaapi.warning('The class %s cannot be derived because the VTable is not setup correctly')
-                    return
+                    idaapi.warning('The class %s cannot be derived because the VTable is not setup correctly' % base_class.name)
+                    return None
 
-        Class(name, base_class)
+        return Class(name, base_class)
 
         '''
         safe_name = name.replace('::', '_')
@@ -290,8 +340,8 @@ class Method(object):
         return signature
 
 
-    def get_signature(self, include_return_type=True):
-        return Method.s_make_signature(self.owner, self.name, self.args, self.is_const, self.return_type if include_return_type else '')
+    def get_signature(self, include_return_type=True, include_owner=True):
+        return Method.s_make_signature(self.owner if include_owner else None, self.name, self.args, self.is_const, self.return_type if include_return_type else '')
 
 
     def copy_signature(self, other):
@@ -415,7 +465,7 @@ class OverrideMethod(VirtualMethod):
         self.copy_signature(self.base)
         self.refresh()
         for o in self.overrides:
-            self.propagate_signature()
+            o.propagate_signature()
 
 
     def get_root_method(self):

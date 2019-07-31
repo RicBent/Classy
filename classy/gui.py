@@ -1,4 +1,5 @@
 from sark.qt import QtWidgets, QtCore
+import sip
 import idaapi
 import idc
 
@@ -14,6 +15,7 @@ class ClassyGui(idaapi.PluginForm):
         idaapi.PluginForm.__init__(self)
         self.plugin = plugin
         self.parent = None
+        self.items_by_class = {}
 
     def show(self):
         idaapi.PluginForm.Show(self, 'Classy')
@@ -30,9 +32,13 @@ class ClassyGui(idaapi.PluginForm):
         splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
         layout.addWidget(splitter)
 
-        self.table = QtWidgets.QListWidget()
-        self.table.currentItemChanged.connect(self.handle_list_index_change)
-        left_layout.addWidget(self.table)
+        self.class_tree = QtWidgets.QTreeWidget()
+        self.class_tree.header().hide()
+        self.class_tree.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.class_tree.customContextMenuRequested.connect(self.handle_class_tree_context_menu)
+        self.class_tree.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
+        self.class_tree.itemSelectionChanged.connect(self.handle_class_tree_selection_change)
+        left_layout.addWidget(self.class_tree)
 
         button_layout = QtWidgets.QHBoxLayout()
 
@@ -56,50 +62,126 @@ class ClassyGui(idaapi.PluginForm):
 
         self.parent.setLayout(layout)
 
-        self.update_table()
-
-    def update_fields(self):
-        self.update_table()
-        self.class_edit.update_fields()
-
-    def update_table(self):
-        db = database.get()
-
-        self.table.clear()
-        for className in db.classes_by_name.keys():
-            item = QtWidgets.QListWidgetItem(className)
-            item.setData(QtCore.Qt.UserRole, db.classes_by_name[className])
-            self.table.addItem(item)
-
-    def add_class(self):
-        database_entries.Class.s_create()
         self.update_fields()
 
-    def remove_class(self):
-        current_item = self.table.currentItem()
-        if current_item is None:
+
+    def update_fields(self):
+        self.reload_tree()
+        self.class_edit.update_fields()
+
+
+    def reload_tree(self):
+        db = database.get()
+
+        self.items_by_class = {}
+        self.class_tree.clear()
+        for c in db.root_classes:
+            self.add_child_class_item(self.class_tree, c)
+
+
+    def add_child_class_item(self, parent, c):
+        if parent is None:
+            parent = self.class_tree
+
+        item = QtWidgets.QTreeWidgetItem(parent, [c.name])
+        item.setData(0, QtCore.Qt.UserRole, c)
+        self.items_by_class[c] = item
+        for d in c.derived:
+            self.add_child_class_item(item, d)
+        return item
+
+
+    def add_class(self):
+        c = database_entries.Class.s_create()
+        if c is None:
             return
 
-        c = current_item.data(QtCore.Qt.UserRole)
+        if c.base is not None:
+            parent_item = self.items_by_class[c.base]
+        else:
+            parent_item = None
+
+        item = self.add_child_class_item(parent_item, c)
+
+        self.class_tree.clearSelection()
+        self.class_tree.scrollToItem(item)
+        item.setSelected(True)
+
+
+    def remove_class(self):
+        item = self.class_tree.selectedItems()[0] if len(self.class_tree.selectedItems()) else None
+        if item is None:
+            return
+
+        c = item.data(0, QtCore.Qt.UserRole)
         if type(c) != database_entries.Class:
             return
 
-        if not util.ask_yes_no('Do you really want to remove this class? All methods and new virtual methods will be unlinked', False):
+        if not util.ask_yes_no('Do you really want to remove the class "%s"? All methods and new virtual methods will be unlinked' % c.name, False):
             return
 
         try:
             c.unlink()
-            self.update_fields()
+            del self.items_by_class[c]
+            sip.delete(item)
             idc.Refresh()
         except ValueError as e:
             idaapi.warning(str(e))
 
 
-    def handle_list_index_change(self, item):
+    def update_class(self, c):
+        try:
+            item = self.items_by_class[c]
+        except KeyError:
+            return
+
+        item.setText(0, c.name)
+
+
+    def generate_class_header(self):
+        item = self.class_tree.selectedItems()[0] if len(self.class_tree.selectedItems()) else None
+        if item is None:
+            return
+
+        c = item.data(0, QtCore.Qt.UserRole)
+        if type(c) != database_entries.Class:
+            return
+
+        path = QtWidgets.QFileDialog.getSaveFileName(None,
+                                                     'Export class definition', c.name + '.h',
+                                                     'C++ Header file (*.h);;All Files (*)')
+        if not path[0]:
+            return
+
+        f = open(path[0], 'w')
+        f.write(c.generate_cpp_definition())
+        f.close()
+
+
+    def handle_class_tree_selection_change(self):
+        item = self.class_tree.selectedItems()[0] if len(self.class_tree.selectedItems()) else None
         if item is None:
             self.class_edit.set_edit_class(None)
         else:
-            self.class_edit.set_edit_class(database.get().classes_by_name[item.text()])
+            c = item.data(0, QtCore.Qt.UserRole)
+            if type(c) == database_entries.Class:
+                self.class_edit.set_edit_class(c)
+            else:
+                self.class_edit.set_edit_class(None)
+
+
+    def handle_class_tree_context_menu(self, point):
+        item = self.class_tree.itemAt(point)
+
+        menu = QtWidgets.QMenu()
+        menu.addAction('Add', self.add_class)
+
+        if item is not None:
+            menu.addAction('Remove', self.remove_class)
+            menu.addAction('Generate C++ Header File', self.generate_class_header)
+
+        menu.exec_(self.class_tree.mapToGlobal(point))
+
 
 
 class ClassWidget(QtWidgets.QWidget):
@@ -237,7 +319,7 @@ class ClassWidget(QtWidgets.QWidget):
             return
 
         self.edit_class.rename(new_name)
-        self.parent_gui.update_fields()
+        self.parent_gui.update_class(self.edit_class)
 
 
     def handle_set_vtable_range(self):
