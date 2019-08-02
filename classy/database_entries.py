@@ -155,16 +155,26 @@ class Class(object):
 
             if idx < my_start_idx:
                 base_method = self.base.vmethods[idx]
-                if dst == base_method.ea:                           # Method from base class
+                if base_method.is_dst_equal(dst):                   # Method from base class
                     self.vmethods.append(self.base.vmethods[idx])
                 else:                                               # Override
-                    om = OverrideMethod(dst, self, base_method)
+                    om = OverrideMethod(dst, self, base_method, idx)
                     om.refresh()
                     self.vmethods.append(om)
+            elif Method.s_is_pure_virtual_dst(dst):                 # New pure virtual
+                pvm = PureVirtualMethod(self, 'vf%X' % (idx*4), idx)
+                pvm.refresh()
+                self.vmethods.append(pvm)
             else:                                                   # New virtual
-                vm = VirtualMethod(dst, self, 'vf%X' % (idx*4))
+                vm = VirtualMethod(dst, self, 'vf%X' % (idx*4), idx)
                 vm.refresh()
                 self.vmethods.append(vm)
+
+
+    def get_vtable_index_ea(self, idx):
+        if idx > len(self.vmethods):
+            raise ValueError('get_vtable_index_ea for out of range index')
+        return self.vtable_start + (idx*4)
 
 
     def iter_vtable(self):
@@ -381,9 +391,15 @@ class Method(object):
             self.owner.methods.remove(self)
 
         self.owner = None
-        del database.get().known_methods[self.ea]
-        idc.MakeName(self.ea, '')
-        idc.SetFunctionCmt(self.ea, '', False)
+
+        if self.ea != idc.BADADDR:
+            del database.get().known_methods[self.ea]
+            idc.MakeName(self.ea, '')
+            idc.SetFunctionCmt(self.ea, '', False)
+
+
+    def is_dst_equal(self, dst):
+        return dst == self.ea
 
 
     def set_signature(self, name, args, return_type='void', is_const=False, ctor_type=1, dtor_type=1):
@@ -440,15 +456,24 @@ class Method(object):
 
 
     def refresh_comment(self):
+        if self.ea == idc.BADADDR:
+            return
+
         comment = self.get_comment()
         if comment:
             idc.SetFunctionCmt(self.ea, comment, False)
 
 
+    @staticmethod
+    def s_is_pure_virtual_dst(dst):
+        return dst in database.get().pure_virtual_vals
+
+
 
 class VirtualMethod(Method):
-    def __init__(self, ea, owner, name):
+    def __init__(self, ea, owner, name, vtable_idx):
         super(VirtualMethod, self).__init__(ea, owner, name)
+        self.vtable_idx = vtable_idx
         self.overrides = []
 
 
@@ -503,11 +528,37 @@ class VirtualMethod(Method):
 
 
 
+class PureVirtualMethod(VirtualMethod):
+    def __init__(self, owner, name, vtable_idx):
+        super(PureVirtualMethod, self).__init__(idc.BADADDR, owner, name, vtable_idx)
+
+
+    def type_name(self):
+        return 'pure virtual'
+
+
+    def is_dst_equal(self, dst):
+        return Method.s_is_pure_virtual_dst(dst)
+
+
+    def refresh(self):
+        self.refresh_comment()
+
+
+    def refresh_comment(self):
+        idc.MakeComm(self.owner.get_vtable_index_ea(self.vtable_idx), self.get_comment())
+
+
+    def get_comment(self):
+        return self.get_signature()
+
+
+
 class OverrideMethod(VirtualMethod):
-    def __init__(self, ea, owner, base):
+    def __init__(self, ea, owner, base, vtable_idx):
         if not base.owner.can_be_derived:
             raise ValueError('Overriding function of class without inited VTable')
-        super(OverrideMethod, self).__init__(ea, owner, base.name)
+        super(OverrideMethod, self).__init__(ea, owner, base.name, vtable_idx)
         self.base = base
         self.base.add_override(self)
         self.copy_signature(base)
@@ -548,7 +599,11 @@ class OverrideMethod(VirtualMethod):
 
 
     def get_comment(self):
-        return 'Overrides: %s : 0x%X\n\n%s' % (self.base.owner.name, self.base.ea, VirtualMethod.get_comment(self))
+        if type(self.base) == PureVirtualMethod:
+            override_cmt = 'pure virtual'
+        else:
+            override_cmt = '0x%X' % self.base.ea
+        return 'Overrides: %s : %s\n\n%s' % (self.base.owner.name, override_cmt, VirtualMethod.get_comment(self))
 
 
 
@@ -567,6 +622,7 @@ class NullMethod(Method):
 
     def unlink(self):
         pass
+
 
 
 def refresh_all():

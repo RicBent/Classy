@@ -67,7 +67,8 @@ class ClassyPlugin(idaapi.plugin_t):
         self.add_menu_item("Show GUI", "Classy/", self.show_gui)
         self.add_menu_item("Save Database", "Classy/", self.save)
         self.add_menu_item("Save Database As...", "Classy/", self.save_as)
-        self.add_menu_item("Edit Typedefs", "Classy/", self.edit_typedefs)
+        self.add_menu_item("Edit Typedefs...", "Classy/", self.edit_typedefs)
+        self.add_menu_item("Set pure virtual values...", "Classy/", self.edit_pure_virtual_vals)
         self.add_menu_item("Refresh all", "Classy/", self.refresh_all)
         self.add_menu_item("Clear Database", "Classy/", self.clear)
         self.add_menu_item("About", "Classy/", show_about)
@@ -121,6 +122,26 @@ class ClassyPlugin(idaapi.plugin_t):
     def edit_typedefs(self):
         dlg = TypedefDialog()
         dlg.exec_()
+
+
+    def edit_pure_virtual_vals(self):
+        db = database.get()
+
+        txt = idaapi.askqstr(', '.join([('0x%X' % x) for x in db.pure_virtual_vals]), "Enter pure virtual values")
+        if txt is None:
+            return
+
+        new_pure_virtual_vals = []
+
+        for s in txt.split(','):
+            try:
+                new_pure_virtual_vals.append(int(s, 0))
+            except ValueError:
+                idaapi.warning('Parsing "%s" failed. Pure virtual values were not modified.' % s)
+                return
+
+        db.pure_virtual_vals = new_pure_virtual_vals
+
 
 
     def refresh_all(self):

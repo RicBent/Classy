@@ -11,7 +11,7 @@ class ClassyDatabase(object):
 
     NONE_DEFAULTS = []
     HASH_DEFAULTS = ['classes_by_name', 'classes_by_struct_id', 'known_methods', 'typedefs']
-    LIST_DEFAULTS = ['root_classes']
+    LIST_DEFAULTS = ['root_classes', 'pure_virtual_vals']
     DEFAULTS = {}
 
     def __init__(self):
