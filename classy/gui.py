@@ -7,6 +7,7 @@ import util
 import database
 import database_entries
 from signature_dialog import SignatureDialog
+from choose_struct_dialog import ChooseStructDialog
 
 
 class ClassyGui(idaapi.PluginForm):
@@ -17,8 +18,10 @@ class ClassyGui(idaapi.PluginForm):
         self.parent = None
         self.items_by_class = {}
 
+
     def show(self):
         idaapi.PluginForm.Show(self, 'Classy')
+
 
     def OnCreate(self, form):
         self.parent = self.FormToPyQtWidget(form)
@@ -208,32 +211,47 @@ class ClassWidget(QtWidgets.QWidget):
         self.derived_classes = QtWidgets.QLabel()
         layout.addWidget(self.derived_classes, 2, 0, 1, 2)
 
+        self.struct = util.ClickableQLabel()
+        self.struct.doubleClicked.connect(self.handle_struct_double_clicked)
+        layout.addWidget(self.struct, 3, 0)
+
+        self.set_struct = QtWidgets.QPushButton('Set')
+        self.set_struct.setMaximumWidth(50)
+        self.set_struct.clicked.connect(self.handle_set_struct)
+        layout.addWidget(self.set_struct, 3, 1)
+
         self.vtable_range = QtWidgets.QLabel()
-        layout.addWidget(self.vtable_range, 3, 0)
+        layout.addWidget(self.vtable_range, 4, 0)
 
         self.set_vtable_range = QtWidgets.QPushButton('Set')
         self.set_vtable_range.setMaximumWidth(50)
         self.set_vtable_range.clicked.connect(self.handle_set_vtable_range)
-        layout.addWidget(self.set_vtable_range, 3, 1)
+        layout.addWidget(self.set_vtable_range, 4, 1)
 
-        self.vtable = QtWidgets.QTableWidget()
+        self.vtable = util.EnterPressQTableWidget()
         self.vtable.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         self.vtable.setColumnCount(4)
         self.vtable.setHorizontalHeaderLabels(['ID', 'Address', 'Function', 'Type'])
+        vtable_header = self.vtable.horizontalHeader()
+        vtable_header.setSectionResizeMode(2, QtWidgets.QHeaderView.Stretch)
         self.vtable.verticalHeader().hide()
         self.vtable.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
-        self.vtable.cellDoubleClicked.connect(self.handle_vtable_double_clicked)
-        layout.addWidget(self.vtable, 4, 0, 1, 2)
+        self.vtable.cellDoubleClicked.connect(self.handle_vtable_interaction)
+        self.vtable.cellEnterPressed.connect(self.handle_vtable_interaction)
+        layout.addWidget(self.vtable, 5, 0, 1, 2)
 
-        self.methods = QtWidgets.QTableWidget()
+        self.methods = util.EnterPressQTableWidget()
         self.methods.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         self.methods.setColumnCount(2)
         self.methods.setHorizontalHeaderLabels(['Address', 'Function'])
+        methods_header = self.methods.horizontalHeader()
+        methods_header.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
         self.methods.verticalHeader().hide()
         self.methods.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
-        self.methods.setSortingEnabled(True)
-        self.methods.cellDoubleClicked.connect(self.handle_methods_double_clicked)
-        layout.addWidget(self.methods, 5, 0, 1, 2)
+        # self.methods.setSortingEnabled(True) Todo
+        self.methods.cellDoubleClicked.connect(self.handle_methods_interaction)
+        self.methods.cellEnterPressed.connect(self.handle_methods_interaction)
+        layout.addWidget(self.methods, 6, 0, 1, 2)
 
         method_btn_layout = QtWidgets.QHBoxLayout()
 
@@ -249,9 +267,10 @@ class ClassWidget(QtWidgets.QWidget):
 
         method_btn_layout.addItem(QtWidgets.QSpacerItem(0, 0, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum))
 
-        layout.addLayout(method_btn_layout, 6, 0, 1, 2)
+        layout.addLayout(method_btn_layout, 7, 0, 1, 2)
 
         self.update_fields()
+
 
     def set_edit_class(self, edit_class):
         self.edit_class = edit_class
@@ -264,6 +283,7 @@ class ClassWidget(QtWidgets.QWidget):
             self.name.setText('Name: -')
             self.base_class.setText('Base class: -')
             self.derived_classes.setText('Derived classes: -')
+            self.struct.setText('Struct: -')
             self.vtable_range.setText('VTable: -')
             self.vtable.setRowCount(0)
             self.methods.setRowCount(0)
@@ -281,6 +301,12 @@ class ClassWidget(QtWidgets.QWidget):
                 derived_classes_txt = 'None'
             self.derived_classes.setText('Derived classes: %s' % derived_classes_txt)
 
+            if self.edit_class.struct_id == idc.BADADDR:
+                struct_txt = 'Not set'
+            else:
+                struct_txt = '%s (%d)' % (idc.get_struc_name(self.edit_class.struct_id), idc.get_struc_idx(self.edit_class.struct_id))
+            self.struct.setText('Struct: %s' % struct_txt)
+
             if self.edit_class.vtable_start is None or self.edit_class.vtable_end is None:
                 vtable_range_txt = 'Not set'
             else:
@@ -294,6 +320,7 @@ class ClassWidget(QtWidgets.QWidget):
                 self.vtable.setItem(idx, 2, QtWidgets.QTableWidgetItem(vm.get_signature()))
                 self.vtable.setItem(idx, 3, QtWidgets.QTableWidgetItem(vm.type_name()))
 
+            # This way of doing won't work when allowing sorting
             self.methods.setRowCount(len(self.edit_class.methods))
             for idx, m in enumerate(self.edit_class.methods):
                 address_item = QtWidgets.QTableWidgetItem(m.ea)
@@ -301,6 +328,47 @@ class ClassWidget(QtWidgets.QWidget):
                 address_item.setData(QtCore.Qt.UserRole, m)
                 self.methods.setItem(idx, 0, address_item)
                 self.methods.setItem(idx, 1, QtWidgets.QTableWidgetItem(m.get_signature()))
+
+
+    def handle_set_struct(self):
+        if self.edit_class is None:
+            return
+
+        default_struct_name = idc.get_struc_name(self.edit_class.struct_id)    \
+                              if self.edit_class.struct_id != idc.BADADDR else \
+                              self.edit_class.name
+
+        dlg = ChooseStructDialog(default_struct_name, has_none_btn=True)
+        if dlg.exec_() != QtWidgets.QDialog.Accepted:
+            return
+
+        if dlg.struct_id == self.edit_class.struct_id:
+            return
+
+        db = database.get()
+        if dlg.struct_id in db.classes_by_struct_id:
+            idaapi.warning('The struct "%s" is already linked to the class "%s"' %
+                           (idc.get_struc_name(dlg.struct_id), b.classes_by_struct_id[dlg.struct_id]))
+            return
+
+        delete_orphaned = False
+        if self.edit_class.struct_id != idc.BADADDR:
+            delete_orphaned = util.ask_yes_no('Do you want to delete the orphaned class', False)
+
+        self.edit_class.set_struct_id(dlg.struct_id, delete_orphaned)
+        self.update_fields()
+
+
+    def handle_struct_double_clicked(self):
+        if self.edit_class is None:
+            return
+
+        if self.edit_class.struct_id == idc.BADADDR:
+            return
+
+        idaapi.open_structs_window(self.edit_class.struct_id)
+        idaapi.open_loctypes_window(64)
+
 
     def handle_set_name(self):
         if self.edit_class is None:
@@ -319,6 +387,7 @@ class ClassWidget(QtWidgets.QWidget):
             return
 
         self.edit_class.rename(new_name)
+        self.update_fields()
         self.parent_gui.update_class(self.edit_class)
 
 
@@ -350,7 +419,7 @@ class ClassWidget(QtWidgets.QWidget):
             idaapi.warning(str(e))
 
 
-    def handle_vtable_double_clicked(self, row, column):
+    def handle_vtable_interaction(self, row, column):
         if self.edit_class is None:
             return
 
@@ -427,7 +496,8 @@ class ClassWidget(QtWidgets.QWidget):
         self.update_fields()
 
 
-    def handle_methods_double_clicked(self, row, column):
+
+    def handle_methods_interaction(self, row, column):
         if self.edit_class is None:
             return
 

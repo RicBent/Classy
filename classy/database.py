@@ -10,7 +10,7 @@ class ClassyDatabase(object):
     NON_DICT_ATTRIBUTES = ['data', 'path', 'is_unsaved', 'is_open']
 
     NONE_DEFAULTS = []
-    HASH_DEFAULTS = ['classes_by_name', 'known_methods']
+    HASH_DEFAULTS = ['classes_by_name', 'classes_by_struct_id', 'known_methods', 'typedefs']
     LIST_DEFAULTS = ['root_classes']
     DEFAULTS = {}
 
@@ -57,9 +57,12 @@ class ClassyDatabase(object):
             self.data[key] = value
 
     def save(self):
+        self.save_as(self.path)
+
+    def save_as(self, path):
         if not self.is_open:
             return
-        cPickle.dump(self.data, open(self.path, 'wb'))
+        cPickle.dump(self.data, open(path, 'wb'))
 
     def initialize(self):
         self.version = self.CURRENT_VERSION

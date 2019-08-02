@@ -122,6 +122,20 @@ def len_encode(ident):
     return "%u%s" % (len(ident), ident)
 
 
+def apply_typedefs(segs, typedefs):
+    idx = 0
+    while idx < len(segs):
+        s = segs[idx]
+        if s in typedefs:
+            del segs[idx]
+            new_segs = typedefs[s].split()
+            while len(new_segs):
+                segs.insert(idx, new_segs.pop(0))
+                idx += 1
+        else:
+            idx += 1
+
+
 def fix_multi_seg_types(segs):
     for l in range(len(segs)):
         for mst in MULTI_SEGMENT_TYPES:
@@ -266,7 +280,10 @@ def mangle_decorated_type(txt_decors, type_txt, subs=None):
 
 
 # Cleans up raw txt argument: Removes the label, parses decors
-def mangle_argument(txt, subs=None):
+def mangle_argument(txt, typedefs=None, subs=None):
+    if typedefs is None:
+        typedefs = {}
+
     if subs is None:
         subs = {}
 
@@ -283,7 +300,7 @@ def mangle_argument(txt, subs=None):
 
     segs = brace_split(txt)
 
-    # Todo: Custom typedefs
+    apply_typedefs(segs, typedefs)
 
     # Fix multi segment types for easier parsing
     fix_multi_seg_types(segs)
@@ -327,7 +344,10 @@ def mangle_argument(txt, subs=None):
 
 
 # Mangles the entire text inside argument braces.
-def mangle_arguments(txt, subs=None):
+def mangle_arguments(txt, typedefs=None, subs=None):
+    if typedefs is None:
+        typedefs = {}
+
     if subs is None:
         subs = {}
 
@@ -341,12 +361,15 @@ def mangle_arguments(txt, subs=None):
 
     ret = ''
     for a in args:
-        ret += mangle_argument(a, subs)
+        ret += mangle_argument(a, typedefs, subs)
     return ret
 
 
 # Basically the main function of all this
-def mangle_function(txt, ctor_type=None, dtor_type=None):
+def mangle_function(txt, typedefs=None, ctor_type=None, dtor_type=None):
+    if typedefs is None:
+        typedefs = {}
+
     left_brace_idx = txt.find('(')
     right_brace_idx = txt.rfind(')')
 
@@ -406,6 +429,6 @@ def mangle_function(txt, ctor_type=None, dtor_type=None):
     for i in range(1, len(identifier_segs)):
         add_to_subs(subs, ''.join(len_encode(ts) for ts in identifier_segs[:i]))
 
-    ret += mangle_arguments(arguments, subs)
+    ret += mangle_arguments(arguments, typedefs, subs)
 
     return ret

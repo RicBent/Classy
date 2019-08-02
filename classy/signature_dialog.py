@@ -2,6 +2,7 @@ import idaapi
 import idc
 from sark.qt import QtWidgets, QtCore
 
+import database
 import itanium_mangler
 
 
@@ -19,7 +20,7 @@ class SignatureDialog(QtWidgets.QDialog):
         self.ctor_type = ctor_type
         self.dtor_type = dtor_type
 
-        self.setWindowTitle("Set function signature")
+        self.setWindowTitle('Set function signature')
 
         layout = QtWidgets.QGridLayout(self)
 
@@ -104,10 +105,10 @@ class SignatureDialog(QtWidgets.QDialog):
         self.update_signature()
 
     def update_signature(self):
-        self.return_type = self.return_type_w.text().encode('ascii','replace').strip() or 'void'
-        self.owner_type = self.owner_type_w.text().encode('ascii','replace').strip()
-        self.name = self.name_w.text().encode('ascii','replace').strip()
-        self.args = self.args_w.text().encode('ascii','replace').strip()
+        self.return_type = self.return_type_w.text().encode('ascii', 'replace').strip() or 'void'
+        self.owner_type = self.owner_type_w.text().encode('ascii', 'replace').strip()
+        self.name = self.name_w.text().encode('ascii', 'replace').strip()
+        self.args = self.args_w.text().encode('ascii', 'replace').strip()
         self.is_const = self.is_const_w.isChecked()
         self.ctor_type = self.ctor_type_w.currentIndex() + 1
         self.dtor_type = self.dtor_type_w.currentIndex()
@@ -142,7 +143,7 @@ class SignatureDialog(QtWidgets.QDialog):
         try:
             if not self.name or (' ' in self.name):
                 raise ValueError('Name is invalid')
-            self.mangled = itanium_mangler.mangle_function(self.signature, self.ctor_type, self.dtor_type)
+            self.mangled = itanium_mangler.mangle_function(self.signature, database.get().typedefs, self.ctor_type, self.dtor_type)
             self.is_signature_valid = True
             self.status = ''
             self.status_w.setText('Valid')

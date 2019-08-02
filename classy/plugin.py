@@ -8,12 +8,13 @@ from sark.qt import QtWidgets, QtCore
 
 from util import *
 from gui import *
+from typedef_dialog import TypedefDialog
 
 import database
 
 
 # Todo:
-#  Don't create the Classy database automaticall
+#  Don't create the Classy database automatically
 #  Check for all actions if a database is created
 
 class ClassyPlugin(idaapi.plugin_t):
@@ -65,6 +66,8 @@ class ClassyPlugin(idaapi.plugin_t):
         self.menu.add_menu("Classy")
         self.add_menu_item("Show GUI", "Classy/", self.show_gui)
         self.add_menu_item("Save Database", "Classy/", self.save)
+        self.add_menu_item("Save Database As...", "Classy/", self.save_as)
+        self.add_menu_item("Edit Typedefs", "Classy/", self.edit_typedefs)
         self.add_menu_item("Refresh all", "Classy/", self.refresh_all)
         self.add_menu_item("Clear Database", "Classy/", self.clear)
         self.add_menu_item("About", "Classy/", show_about)
@@ -87,6 +90,23 @@ class ClassyPlugin(idaapi.plugin_t):
         database.get().save()
 
 
+    def save_as(self):
+        db = database.get()
+
+        path = QtWidgets.QFileDialog.getSaveFileName(None,
+                                                     'Export Classy database', '',
+                                                     'Classy database (*.cdb)')
+        if not path[0]:
+            return
+
+        # Check for user idiocy
+        if os.path.normpath(path[0]) == os.path.normpath(db.path):
+            idaapi.warning('You cannot overwrite the currently active Classy database.')
+            return
+
+        db.save_as(path[0])
+
+
     def show_gui(self):
         self.gui.show()
 
@@ -96,6 +116,11 @@ class ClassyPlugin(idaapi.plugin_t):
             database.get().clear()
             self.gui.update_fields()
             idc.Refresh()
+
+
+    def edit_typedefs(self):
+        dlg = TypedefDialog()
+        dlg.exec_()
 
 
     def refresh_all(self):

@@ -12,6 +12,8 @@ class Class(object):
         self.base = base
         self.derived = []
 
+        self.struct_id = idc.BADADDR
+
         if self.base is not None:
             self.base.derived.append(self)
 
@@ -28,7 +30,7 @@ class Class(object):
             db.root_classes.append(self)
 
 
-    def unlink(self):
+    def unlink(self, delete_orphaned_struct=False):
         if len(self.derived) > 0:
             raise ValueError('Cannot unlink classes with derived classes')
 
@@ -39,6 +41,8 @@ class Class(object):
             if vm.owner == self:
                 vm.unlink()
 
+        self.unlink_struct(delete_orphaned_struct)
+
         if self.base is not None:
             self.base.derived.remove(self)
 
@@ -46,6 +50,15 @@ class Class(object):
         del db.classes_by_name[self.name]
         if self.base is None:
             db.root_classes.remove(self)
+
+
+    def safe_name(self):
+        return Class.s_safe_name(self.name)
+
+
+    @staticmethod
+    def s_safe_name(name):
+        return name.replace('::', '_')
 
 
     def rename(self, new_name):
@@ -56,6 +69,12 @@ class Class(object):
         db.classes_by_name[new_name] = self
 
         self.name = new_name
+
+        # Try to rename the struct
+        if self.struct_id != idc.BADADDR:
+            struct_name = idc.get_struc_name(self.struct_id)
+            if struct_name == Class.s_safe_name(old_name):
+                idc.set_struc_name(self.struct_id, self.safe_name())
 
         # Rename ctors and dtors
         for vm in self.vmethods:
@@ -77,6 +96,7 @@ class Class(object):
             m.refresh()
         for m in self.vmethods:
             m.refresh()
+        self.refresh_struct_comment()
 
 
     def set_vtable_range(self, start, end):
@@ -156,6 +176,47 @@ class Class(object):
             ea += 4
 
 
+    def set_struct_id(self, new_struct_id, delete_orphaned=False):
+        db = database.get()
+
+        if self.struct_id == new_struct_id:
+            return
+
+        if new_struct_id in db.classes_by_struct_id:
+            raise ValueError('The struct is already assigned to the class %s' % db.classes_by_struct_id[new_struct_id]).name
+
+        self.unlink_struct(delete_orphaned)
+
+        self.struct_id = new_struct_id
+        if self.struct_id != idc.BADADDR:
+            db.classes_by_struct_id[self.struct_id] = self
+
+        self.refresh()
+
+
+    def unlink_struct(self, delete_orphaned=False):
+        if self.struct_id == idc.BADADDR:
+            return
+
+        del database.get().classes_by_struct_id[self.struct_id]
+
+        if delete_orphaned:
+            idc.del_struc(self.struct_id)
+        else:
+            struct_name = idc.get_struc_name(self.struct_id)
+            idc.set_struc_cmt(self.struct_id, 'Orphaned from %s' % self.name, False)
+            idc.set_struc_name(self.struct_id, '%s_orphaned' % struct_name)
+
+        self.struct_id = idc.BADADDR
+
+
+    def refresh_struct_comment(self):
+        if self.struct_id == idc.BADADDR:
+            return
+
+        idc.set_struc_cmt(self.struct_id, 'Linked to %s' % self.name, False)
+
+
     def generate_cpp_definition(self):
         contents = []
         contents.append('class %s%s\n{\npublic:' % (self.name, '' if self.base is None else (' : public %s' % self.base.name)))
@@ -198,7 +259,17 @@ class Class(object):
                 seen_dtor = True
             contents.append('    %s;' % m.get_signature(include_owner=False))
 
-        # Todo: members of linked struct?
+        # Todo: Replace this ugly temp code
+        if self.struct_id != idc.BADADDR:
+            struct = idaapi.get_struc(self.struct_id)
+            raw_txt = idc.GetLocalType(struct.ordinal, idc.PRTYPE_1LINE)
+            l_idx = raw_txt.find('{')
+            r_idx = raw_txt.find('}')
+            segs = raw_txt[l_idx+1:r_idx].split(';')
+            if len(segs):
+                contents.append('')
+            for s in segs:
+                contents.append('    %s;' % s)
 
         contents.append('};\n')
 
@@ -232,11 +303,12 @@ class Class(object):
         db = database.get()
 
         name = idaapi.askqstr('', 'Enter a class name')
-        if name in database.get().classes_by_name:
-            idaapi.warning('That name is already used.')
-            return None
 
         if name is None:
+            return None
+
+        if name in database.get().classes_by_name:
+            idaapi.warning('That name is already used.')
             return None
 
         if not Class.s_name_is_valid(name):
@@ -316,7 +388,7 @@ class Method(object):
 
     def set_signature(self, name, args, return_type='void', is_const=False, ctor_type=1, dtor_type=1):
         signature = Method.s_make_signature(self.owner, name, args, is_const, return_type)
-        itanium_mangler.mangle_function(signature, ctor_type, dtor_type)    # throws excption when invalid
+        itanium_mangler.mangle_function(signature, database.get().typedefs, ctor_type, dtor_type)    # throws excption when invalid
         self.name = name
         self.args = args
         self.return_type = return_type
@@ -360,7 +432,7 @@ class Method(object):
 
     def get_mangled(self):
         demangled = self.get_signature(False)
-        return itanium_mangler.mangle_function(demangled, self.ctor_type, self.dtor_type)
+        return itanium_mangler.mangle_function(demangled, database.get().typedefs, self.ctor_type, self.dtor_type)
 
 
     def get_comment(self):
@@ -409,7 +481,7 @@ class VirtualMethod(Method):
         if len(self.overrides) > 0:
             lines.append('Overridden by:')
             for o in self.overrides:
-                lines.append('  - %s : 0x%X' % (o.owner.name, o.ea))
+                lines.append('  - 0x%X : %s' % (o.ea, o.owner.name))
         else:
             lines.append('Overridden by: None')
 
