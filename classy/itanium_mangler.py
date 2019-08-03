@@ -1,3 +1,5 @@
+# If you want to stay sane, better close this file ;)
+
 PREFIX = '_Z'
 
 DECORS = {
