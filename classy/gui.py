@@ -316,7 +316,7 @@ class ClassWidget(QtWidgets.QWidget):
             self.vtable.setRowCount(len(self.edit_class.vmethods))
             for idx, vm in enumerate(self.edit_class.vmethods):
                 self.vtable.setItem(idx, 0, QtWidgets.QTableWidgetItem(str(idx)))
-                self.vtable.setItem(idx, 1, QtWidgets.QTableWidgetItem(("0x%X" % vm.ea) if type(vm) != database_entries.PureVirtualMethod else '-'))
+                self.vtable.setItem(idx, 1, QtWidgets.QTableWidgetItem(("0x%X" % vm.ea) if vm.ea != idc.BADADDR else '-'))
                 self.vtable.setItem(idx, 2, QtWidgets.QTableWidgetItem(vm.get_signature()))
                 self.vtable.setItem(idx, 3, QtWidgets.QTableWidgetItem(vm.type_name()))
 

@@ -157,12 +157,24 @@ class Class(object):
                 base_method = self.base.vmethods[idx]
                 if base_method.is_dst_equal(dst):                   # Method from base class
                     self.vmethods.append(self.base.vmethods[idx])
-                else:                                               # Override
+                elif Method.s_is_pure_virtual_dst(dst):             # New pure virtual override
+                    opvm = PureVirtualOverrideMethod(self, base_method, idx)
+                    opvm.refresh()
+                    self.vmethods.append(opvm)
+                elif Method.s_is_deleted_virtual_dst(dst):          # New deleted override
+                    dom = DeletedOverrideMethod(self, base_method, idx)
+                    dom.refresh()
+                    self.vmethods.append(dom)
+                else:                                               # New override
                     om = OverrideMethod(dst, self, base_method, idx)
                     om.refresh()
                     self.vmethods.append(om)
             elif Method.s_is_pure_virtual_dst(dst):                 # New pure virtual
                 pvm = PureVirtualMethod(self, 'vf%X' % (idx*4), idx)
+                pvm.refresh()
+                self.vmethods.append(pvm)
+            elif Method.s_is_deleted_virtual_dst(dst):              # New deleted virtual
+                pvm = DeletedVirtualMethod(self, 'vf%X' % (idx*4), idx)
                 pvm.refresh()
                 self.vmethods.append(pvm)
             else:                                                   # New virtual
@@ -381,9 +393,10 @@ class Method(object):
 
 
     def refresh(self):
-        mangled = self.get_mangled()
-        idc.MakeName(self.ea, mangled)
-        self.refresh_comment()
+        if self.ea != idc.BADADDR:
+            mangled = self.get_mangled()
+            idc.MakeName(self.ea, mangled)
+        self.refresh_comments()
 
 
     def unlink(self):
@@ -455,7 +468,7 @@ class Method(object):
         return ''
 
 
-    def refresh_comment(self):
+    def refresh_comments(self):
         if self.ea == idc.BADADDR:
             return
 
@@ -469,6 +482,11 @@ class Method(object):
         return dst in database.get().pure_virtual_vals
 
 
+    @staticmethod
+    def s_is_deleted_virtual_dst(dst):
+        return dst in database.get().deleted_virtual_vals
+
+
 
 class VirtualMethod(Method):
     def __init__(self, ea, owner, name, vtable_idx):
@@ -477,12 +495,25 @@ class VirtualMethod(Method):
         self.overrides = []
 
 
+    def is_override(self):
+        return False
+
+
+    def is_pure_virtual(self):
+        return False
+
+
     def type_name(self):
         return 'virtual'
 
 
     def refresh(self):
         Method.refresh(self)
+
+
+    def refresh_comments(self):
+        Method.refresh_comments(self)
+        idc.MakeComm(self.owner.get_vtable_index_ea(self.vtable_idx), self.get_vtable_comment())
 
 
     def unlink(self):
@@ -506,31 +537,42 @@ class VirtualMethod(Method):
         if len(self.overrides) > 0:
             lines.append('Overridden by:')
             for o in self.overrides:
-                lines.append('  - 0x%X : %s' % (o.ea, o.owner.name))
+                if not o.is_pure_virtual():
+                    lines.append('  - 0x%X : %s' % (o.ea, o.owner.name))
+                else:
+                    lines.append('  - pure virtual : %s' % o.owner.name)
         else:
             lines.append('Overridden by: None')
 
         return "\n".join(lines)
 
 
+    def get_vtable_comment(self):
+        return ''
+
+
     def add_override(self, override):
         if override in self.overrides:
             return
         self.overrides.append(override)
-        self.refresh_comment()
+        self.refresh_comments()
 
 
     def remove_override(self, override):
         if override not in self.overrides:
             return
         self.overrides.remove(override)
-        self.refresh_comment()
+        self.refresh_comments()
 
 
 
 class PureVirtualMethod(VirtualMethod):
     def __init__(self, owner, name, vtable_idx):
         super(PureVirtualMethod, self).__init__(idc.BADADDR, owner, name, vtable_idx)
+
+
+    def is_pure_virtual(self):
+        return True
 
 
     def type_name(self):
@@ -541,27 +583,41 @@ class PureVirtualMethod(VirtualMethod):
         return Method.s_is_pure_virtual_dst(dst)
 
 
-    def refresh(self):
-        self.refresh_comment()
-
-
-    def refresh_comment(self):
-        idc.MakeComm(self.owner.get_vtable_index_ea(self.vtable_idx), self.get_comment())
-
-
     def get_comment(self):
+        return ''
+
+
+    def get_vtable_comment(self):
         return self.get_signature()
+
+
+
+class DeletedVirtualMethod(PureVirtualMethod):
+    def __init__(self, owner, name, vtable_idx):
+        super(DeletedVirtualMethod, self).__init__(owner, name, vtable_idx)
+
+
+    def type_name(self):
+        return 'deleted virtual'
+
+
+    def is_dst_equal(self, dst):
+        return Method.s_is_deleted_virtual_dst(dst)
 
 
 
 class OverrideMethod(VirtualMethod):
     def __init__(self, ea, owner, base, vtable_idx):
-        if not base.owner.can_be_derived:
+        if not base.owner.can_be_derived():
             raise ValueError('Overriding function of class without inited VTable')
         super(OverrideMethod, self).__init__(ea, owner, base.name, vtable_idx)
         self.base = base
         self.base.add_override(self)
         self.copy_signature(base)
+
+
+    def is_override(self):
+        return True
 
 
     def type_name(self):
@@ -593,17 +649,57 @@ class OverrideMethod(VirtualMethod):
 
     def get_root_method(self):
         method = self
-        while type(method) != VirtualMethod:
+        while method.is_override():
             method = method.base
         return method
 
 
     def get_comment(self):
-        if type(self.base) == PureVirtualMethod:
+        if self.base.is_pure_virtual():
             override_cmt = 'pure virtual'
         else:
             override_cmt = '0x%X' % self.base.ea
         return 'Overrides: %s : %s\n\n%s' % (self.base.owner.name, override_cmt, VirtualMethod.get_comment(self))
+
+
+
+class PureVirtualOverrideMethod(OverrideMethod):
+    def __init__(self, owner, base, vtable_idx):
+        super(PureVirtualOverrideMethod, self).__init__(idc.BADADDR, owner, base, vtable_idx)
+
+
+    def is_pure_virtual(self):
+        return True
+
+
+    def type_name(self):
+        return 'pure virtual override'
+
+
+    def is_dst_equal(self, dst):
+        return Method.s_is_pure_virtual_dst(dst)
+
+
+    def get_comment(self):
+        return ''
+
+
+    def get_vtable_comment(self):
+        return self.get_signature()
+
+
+
+class DeletedOverrideMethod(PureVirtualOverrideMethod):
+    def __init__(self, owner, base, vtable_idx):
+        super(DeletedOverrideMethod, self).__init__(owner, base, vtable_idx)
+
+
+    def type_name(self):
+        return 'deleted override'
+
+
+    def is_dst_equal(self, dst):
+        return Method.s_is_deleted_virtual_dst(dst)
 
 
 

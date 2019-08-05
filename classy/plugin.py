@@ -69,6 +69,7 @@ class ClassyPlugin(idaapi.plugin_t):
         self.add_menu_item("Save Database As...", "Classy/", self.save_as)
         self.add_menu_item("Edit Typedefs...", "Classy/", self.edit_typedefs)
         self.add_menu_item("Set pure virtual values...", "Classy/", self.edit_pure_virtual_vals)
+        self.add_menu_item("Set deleted virtual values...", "Classy/", self.edit_deleted_virtual_vals)
         self.add_menu_item("Refresh all", "Classy/", self.refresh_all)
         self.add_menu_item("Clear Database", "Classy/", self.clear)
         self.add_menu_item("About", "Classy/", show_about)
@@ -128,7 +129,7 @@ class ClassyPlugin(idaapi.plugin_t):
         db = database.get()
 
         txt = idaapi.askqstr(', '.join([('0x%X' % x) for x in db.pure_virtual_vals]), "Enter pure virtual values")
-        if txt is None:
+        if txt is None or not txt.strip():
             return
 
         new_pure_virtual_vals = []
@@ -141,6 +142,25 @@ class ClassyPlugin(idaapi.plugin_t):
                 return
 
         db.pure_virtual_vals = new_pure_virtual_vals
+
+
+    def edit_deleted_virtual_vals(self):
+        db = database.get()
+
+        txt = idaapi.askqstr(', '.join([('0x%X' % x) for x in db.deleted_virtual_vals]), "Enter deleted virtual values")
+        if txt is None or not txt.strip():
+            return
+
+        new_deleted_virtual_vals = []
+
+        for s in txt.split(','):
+            try:
+                new_deleted_virtual_vals.append(int(s, 0))
+            except ValueError:
+                idaapi.warning('Parsing "%s" failed. Deleted virtual values were not modified.' % s)
+                return
+
+        db.deleted_virtual_vals = new_deleted_virtual_vals
 
 
 
