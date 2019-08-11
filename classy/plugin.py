@@ -14,10 +14,6 @@ from typedef_dialog import TypedefDialog
 import database
 
 
-# Todo:
-#  Don't create the Classy database automatically
-#  Check for all actions if a database is created
-
 class ClassyPlugin(idaapi.plugin_t):
     flags = idaapi.PLUGIN_PROC
     comment = ""
@@ -110,6 +106,18 @@ class ClassyPlugin(idaapi.plugin_t):
             self.menumgr.set_state(MenuState.DATABASE_OPENED)
         else:
             self.menumgr.set_state(MenuState.DATABASE_CLOSED)
+
+
+    def export_all_symbols(self):
+        path = QtWidgets.QFileDialog.getSaveFileName(None,
+                                                     'Export all symbols', '',
+                                                     'Linker script (*.ld);;All files (*)')
+        if not path[0]:
+            return
+
+        f = open(path[0], 'w')
+        f.write(database.get().generate_symbols())
+        f.close()
 
 
 

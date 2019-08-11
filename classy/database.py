@@ -1,6 +1,7 @@
 import cPickle
 import idaapi
 import os
+from datetime import datetime
 
 from util import log
 from sark.qt import QtCore
@@ -123,6 +124,21 @@ class ClassyDatabase(object):
         self.autosave_timer.stop()
         if self.is_open:
             self.autosave_timer.start(self.autosave_interval * 1000)
+
+
+    def generate_symbols(self):
+        contents = []
+        contents.append('/*\n * Classy exported symbols')
+        contents.append(datetime.now().strftime(' * %x %X'))
+        contents.append(' */\n\n')
+
+        if len(self.classes_by_name) > 0:
+            contents.append('/*\n * Classes\n */\n\n')
+            for c_name in self.classes_by_name:
+                contents.append(self.classes_by_name[c_name].generate_symbols())
+                contents.append('')
+
+        return '\n'.join(contents)
 
 
     @staticmethod
