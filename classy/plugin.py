@@ -8,6 +8,7 @@ from sark.qt import QtWidgets, QtCore
 
 from util import *
 from gui import *
+from menumgr import MenuMgr, MenuState
 from typedef_dialog import TypedefDialog
 
 import database
@@ -29,22 +30,25 @@ class ClassyPlugin(idaapi.plugin_t):
 
 
     def init(self):
-        try:
-            self.actions = []
-            self.menu = sark.qt.MenuManager()
-            self.add_menu_items()
+        self.menumgr = MenuMgr(self)
+        self.gui = ClassyGui(self)
 
-            self.gui = ClassyGui(self)
+        db = database.create_instance()
+        if db.is_created():
+            try:
+                db.open()
+            except Exception as e:
+                idaapi.warning('Loading Classy database failed: %s' % str(e))
 
-            database.create_instance()
+        if db.is_open:
+            self.menumgr.set_state(MenuState.DATABASE_OPENED)
+        else:
+            self.menumgr.set_state(MenuState.DATABASE_CLOSED)
 
-            log('Loaded')
 
-            return idaapi.PLUGIN_KEEP
+        log('Loaded')
 
-        except Exception as e:
-            idaapi.warning("Loading Classy failed: " + str(e))
-            return idaapi.PLUGIN_SKIP
+        return idaapi.PLUGIN_KEEP
 
 
     def run(self, arg):
@@ -52,40 +56,21 @@ class ClassyPlugin(idaapi.plugin_t):
 
 
     def term(self):
-        if ask_yes_no('Do you want to save the classy database?', True):
-            database.get().save()
+        try:
+            db = database.get()
 
-        database.destroy_instance()
+            if db.is_open and ask_yes_no('Do you want to save the classy database?', True):
+                db.save()
+            db.close()
 
-        self.remove_menu_items()
+            database.destroy_instance()
+
+        except ValueError:      # Database instance might not be created
+            pass
+
+        self.menumgr.cleanup()
 
         log('Unloaded')
-
-    
-    def add_menu_items(self):
-        self.menu.add_menu("Classy")
-        self.add_menu_item("Show GUI", "Classy/", self.show_gui)
-        self.add_menu_item("Save Database", "Classy/", self.save)
-        self.add_menu_item("Save Database As...", "Classy/", self.save_as)
-        self.add_menu_item("Edit Typedefs...", "Classy/", self.edit_typedefs)
-        self.add_menu_item("Set pure virtual values...", "Classy/", self.edit_pure_virtual_vals)
-        self.add_menu_item("Set deleted virtual values...", "Classy/", self.edit_deleted_virtual_vals)
-        self.add_menu_item("Refresh all", "Classy/", self.refresh_all)
-        self.add_menu_item("Clear Database", "Classy/", self.clear)
-        self.add_menu_item("About", "Classy/", show_about)
-
-
-    def add_menu_item(self, name, menu_path, callback, shortcut = "", tooltip = ""):
-        id = 'Classy:' + re.sub('[^A-Za-z0-9]+', '_', name)
-        action = UiAction(id, name, tooltip, menu_path, callback, shortcut)
-        action.register_action()
-        self.actions.append(action)
-
-
-    def remove_menu_items(self):
-        for action in self.actions:
-            action.unregister_action()
-        self.menu.clear()
 
 
     def save(self):
@@ -113,7 +98,22 @@ class ClassyPlugin(idaapi.plugin_t):
         self.gui.show()
 
 
-    def clear(self):
+    def create_open_database(self):
+        db = database.get()
+
+        try:
+            db.open()
+        except Exception as e:
+            idaapi.warning('Creating/opening Classy database failed: %s' % str(e))
+
+        if db.is_open:
+            self.menumgr.set_state(MenuState.DATABASE_OPENED)
+        else:
+            self.menumgr.set_state(MenuState.DATABASE_CLOSED)
+
+
+
+    def clear_database(self):
         if ask_yes_no('Are you really sure that you want to clear the Classy databse?\n', False):
             database.get().clear()
             self.gui.update_fields()
@@ -163,7 +163,14 @@ class ClassyPlugin(idaapi.plugin_t):
         db.deleted_virtual_vals = new_deleted_virtual_vals
 
 
-
     def refresh_all(self):
         database_entries.refresh_all()
         idc.Refresh()
+
+
+    def set_autosave_interval(self):
+        db = database.get()
+
+        new_interval, ok_pressed = QtWidgets.QInputDialog.getInt(None, 'Set autosave interval', 'Autosave interval [seconds]:', db.autosave_interval, 10)
+        if ok_pressed:
+            db.set_autosave_interval(new_interval)

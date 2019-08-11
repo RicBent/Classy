@@ -298,6 +298,25 @@ class Class(object):
         return '\n'.join(contents)
 
 
+    def generate_symbols(self):
+        contents = ['/* %s */\n' % self.name]
+
+        if len(self.vmethods):
+            contents.append('/* virtual functions */')
+            for vm in self.vmethods:
+                if vm.owner == self and not vm.is_pure_virtual():
+                    contents.append('%s = 0x%X;' % (vm.get_mangled(), vm.ea))
+            contents.append('')
+
+        if len(self.methods):
+            contents.append('/* functions */')
+            for m in self.methods:
+                contents.append('%s = 0x%X;' % (m.get_mangled(), m.ea))
+            contents.append('')
+
+        return '\n'.join(contents)
+
+
     @staticmethod
     def s_name_is_valid(name):
 
@@ -443,6 +462,10 @@ class Method(object):
 
     def get_signature(self, include_return_type=True, include_owner=True):
         return Method.s_make_signature(self.owner if include_owner else None, self.name, self.args, self.is_const, self.return_type if include_return_type else '')
+
+
+    def get_mangled(self):
+        return itanium_mangler.mangle_function(self.get_signature(), database.get().typedefs, self.ctor_type, self.dtor_type)  # throws excption when invalid
 
 
     def copy_signature(self, other):
