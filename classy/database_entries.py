@@ -148,10 +148,20 @@ class Class(object):
     def init_vtable(self):
         my_start_idx = self.vtable_start_idx()
 
-        for idx, ea in enumerate(range(self.vtable_start, self.vtable_end, 4)):
-            idc.MakeDword(ea)
+        # Fix: support 64bit work
+        if idc.__EA64__:
+            pointer_size = idaapi.DEF_ADDRSIZE
+            pfn_make_ptr = idc.MakeQword
+            pfn_get_ptr_value = idc.Qword
+        else:
+            pointer_size = idaapi.DEF_ADDRSIZE
+            pfn_make_ptr = idc.MakeDword
+            pfn_get_ptr_value = idc.Dword
+
+        for idx, ea in enumerate(range(self.vtable_start, self.vtable_end, pointer_size)):
+            pfn_make_ptr(ea)
             idc.OpOff(ea, 0, 0)
-            dst = idc.Dword(ea)
+            dst = pfn_get_ptr_value(ea)
 
             if idx < my_start_idx:
                 base_method = self.base.vmethods[idx]
