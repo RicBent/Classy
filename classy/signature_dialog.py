@@ -2,8 +2,8 @@ import idaapi
 import idc
 from sark.qt import QtWidgets, QtCore
 
-import database
-import itanium_mangler
+import classy.database as database
+import classy.itanium_mangler as itanium_mangler
 
 
 class SignatureDialog(QtWidgets.QDialog):
@@ -105,10 +105,10 @@ class SignatureDialog(QtWidgets.QDialog):
         self.update_signature()
 
     def update_signature(self):
-        self.return_type = self.return_type_w.text().encode('ascii', 'replace').strip() or 'void'
-        self.owner_type = self.owner_type_w.text().encode('ascii', 'replace').strip()
-        self.name = self.name_w.text().encode('ascii', 'replace').strip()
-        self.args = self.args_w.text().encode('ascii', 'replace').strip()
+        self.return_type = self.return_type_w.text().encode('ascii', 'replace').strip().decode() or 'void'
+        self.owner_type = self.owner_type_w.text().encode('ascii', 'replace').strip().decode()
+        self.name = self.name_w.text().encode('ascii', 'replace').strip().decode()
+        self.args = self.args_w.text().encode('ascii', 'replace').strip().decode()
         self.is_const = self.is_const_w.isChecked()
         self.ctor_type = self.ctor_type_w.currentIndex() + 1
         self.dtor_type = self.dtor_type_w.currentIndex()

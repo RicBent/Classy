@@ -1,7 +1,9 @@
 import idaapi
 import idc
-import database
-import itanium_mangler
+import ida_bytes
+
+import classy.database as database
+import classy.itanium_mangler as itanium_mangler
 
 
 class Class(object):
@@ -151,16 +153,16 @@ class Class(object):
         # Fix: support 64bit work
         if idc.__EA64__:
             pointer_size = idaapi.DEF_ADDRSIZE
-            pfn_make_ptr = idc.MakeQword
-            pfn_get_ptr_value = idc.Qword
+            pfn_make_ptr = lambda x: ida_bytes.create_data(x, idc.FF_QWORD, 8, idaapi.BADADDR) #MakeQword
+            pfn_get_ptr_value = idc.get_qword
         else:
             pointer_size = idaapi.DEF_ADDRSIZE
-            pfn_make_ptr = idc.MakeDword
-            pfn_get_ptr_value = idc.Dword
+            pfn_make_ptr =  lambda x: ida_bytes.create_data(x, idc.FF_DWORD, 4, idaapi.BADADDR) #ida_bytes.MakeDword
+            pfn_get_ptr_value = idc.get_dword
 
         for idx, ea in enumerate(range(self.vtable_start, self.vtable_end, pointer_size)):
             pfn_make_ptr(ea)
-            idc.OpOff(ea, 0, 0)
+            idc.op_plain_offset(ea, 0, 0)
             dst = pfn_get_ptr_value(ea)
 
             if idx < my_start_idx:
@@ -204,7 +206,7 @@ class Class(object):
         end = self.vtable_end
 
         while ea <= end:
-            yield (ea, idc.Dword(ea))
+            yield (ea, idc.get_wide_dword(ea))
             ea += 4
 
 
@@ -294,7 +296,7 @@ class Class(object):
         # Todo: Replace this ugly temp code
         if self.struct_id != idc.BADADDR:
             struct = idaapi.get_struc(self.struct_id)
-            raw_txt = idc.GetLocalType(struct.ordinal, idc.PRTYPE_1LINE)
+            raw_txt = idc.get_local_type(struct.ordinal, idc.PRTYPE_1LINE)
             l_idx = raw_txt.find('{')
             r_idx = raw_txt.find('}')
             segs = raw_txt[l_idx+1:r_idx].split(';')
@@ -353,7 +355,7 @@ class Class(object):
     def s_create():
         db = database.get()
 
-        name = idaapi.askqstr('', 'Enter a class name')
+        name = idaapi.ask_str('', idaapi.HIST_IDENT,'Enter a class name')
 
         if name is None:
             return None
@@ -367,7 +369,7 @@ class Class(object):
             return None
 
         base_class = None
-        base_name = idaapi.askqstr('', 'Enter a base class name (leave empty for none)')
+        base_name = idaapi.ask_str('', idaapi.HIST_IDENT,'Enter a base class name (leave empty for none)')
         if base_name is None:
             return None
         if base_name:
@@ -424,7 +426,7 @@ class Method(object):
     def refresh(self):
         if self.ea != idc.BADADDR:
             mangled = self.get_mangled()
-            idc.MakeName(self.ea, mangled)
+            idc.set_name(self.ea, mangled, idc.SN_CHECK)
         self.refresh_comments()
 
 
@@ -436,8 +438,8 @@ class Method(object):
 
         if self.ea != idc.BADADDR:
             del database.get().known_methods[self.ea]
-            idc.MakeName(self.ea, '')
-            idc.SetFunctionCmt(self.ea, '', False)
+            idc.set_name(self.ea, '', idc.SN_CHECK)
+            idc.set_func_cmt(self.ea, '', False)
 
 
     def is_dst_equal(self, dst):
@@ -507,7 +509,7 @@ class Method(object):
 
         comment = self.get_comment()
         if comment:
-            idc.SetFunctionCmt(self.ea, comment, False)
+            idc.set_func_cmt(self.ea, comment, False)
 
 
     @staticmethod
@@ -546,7 +548,7 @@ class VirtualMethod(Method):
 
     def refresh_comments(self):
         Method.refresh_comments(self)
-        idc.MakeComm(self.owner.get_vtable_index_ea(self.vtable_idx), self.get_vtable_comment())
+        idc.set_cmt(self.owner.get_vtable_index_ea(self.vtable_idx), self.get_vtable_comment(), 0) 
 
 
     def unlink(self):

@@ -2,8 +2,8 @@ import idaapi
 import idc
 from sark.qt import QtWidgets, QtCore
 
-import database
-import itanium_mangler
+import classy.database as database
+import classy.itanium_mangler as itanium_mangler
 
 
 # Todo: Move some code to database_entries
@@ -50,7 +50,7 @@ class TypedefDialog(QtWidgets.QDialog):
 
 
     def handle_add(self):
-        t = idaapi.askqstr('', 'Enter typedef name')
+        t = idaapi.ask_str('', idaapi.HIST_IDENT,'Enter typedef name')
         if t is None:
             return
 
@@ -88,7 +88,7 @@ class TypedefDialog(QtWidgets.QDialog):
 
 
     def try_set_typedef(self, t):
-        val = idaapi.askqstr('', 'Enter typedef value')
+        val = idaapi.ask_str('', idaapi.HIST_IDENT,'Enter typedef value')
         if val is None:
             return
 

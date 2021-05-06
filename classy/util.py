@@ -1,6 +1,6 @@
 import idaapi
 from sark.qt import QtWidgets, QtCore
-from aboutwindow import AboutWindow
+from classy.aboutwindow import AboutWindow
 
 
 def ask_yes_no(text, yes_is_default = True):
