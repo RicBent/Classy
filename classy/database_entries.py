@@ -154,11 +154,11 @@ class Class(object):
         if idc.__EA64__:
             pointer_size = idaapi.DEF_ADDRSIZE
             pfn_make_ptr = lambda x: ida_bytes.create_data(x, idc.FF_QWORD, 8, idaapi.BADADDR) #MakeQword
-            pfn_get_ptr_value = idc.get_qword
+            pfn_get_ptr_value = ida_bytes.get_qword
         else:
             pointer_size = idaapi.DEF_ADDRSIZE
             pfn_make_ptr =  lambda x: ida_bytes.create_data(x, idc.FF_DWORD, 4, idaapi.BADADDR) #ida_bytes.MakeDword
-            pfn_get_ptr_value = idc.get_dword
+            pfn_get_ptr_value = ida_bytes.get_dword
 
         for idx, ea in enumerate(range(self.vtable_start, self.vtable_end, pointer_size)):
             pfn_make_ptr(ea)
