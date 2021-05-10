@@ -3,11 +3,11 @@ import sip
 import idaapi
 import idc
 
-import util
-import database
-import database_entries
-from signature_dialog import SignatureDialog
-from choose_struct_dialog import ChooseStructDialog
+import classy.util as util
+import classy.database as database
+import classy.database_entries as database_entries
+from classy.signature_dialog import SignatureDialog
+from classy.choose_struct_dialog import ChooseStructDialog
 
 
 class ClassyGui(idaapi.PluginForm):
@@ -127,7 +127,7 @@ class ClassyGui(idaapi.PluginForm):
             c.unlink()
             del self.items_by_class[c]
             sip.delete(item)
-            idc.Refresh()
+            idaapi.refresh_idaview_anyway()
         except ValueError as e:
             idaapi.warning(str(e))
 
@@ -373,7 +373,7 @@ class ClassWidget(QtWidgets.QWidget):
         if self.edit_class is None:
             return
 
-        new_name = idaapi.askqstr(self.edit_class.name, 'Enter a class name')
+        new_name = idaapi.ask_str(self.edit_class.name, idaapi.HIST_IDENT,'Enter a class name')
         if new_name is None or new_name == self.edit_class.name:
             return
 
@@ -394,25 +394,35 @@ class ClassWidget(QtWidgets.QWidget):
         if self.edit_class is None:
             return
 
-        selection = idaapi.read_selection()
+        p0 = idaapi.twinpos_t()
+        p1 = idaapi.twinpos_t()
+        view = idaapi.get_current_viewer()
+
+        success = idaapi.read_selection(view, p0, p1)
+
+        if not success:
+            idaapi.warning('Please, select region in ida dissasembler')
+
+        ea0 = p0.place(view).ea
+        ea1 = p1.place(view).ea
 
         # Check selection
-        if selection[1] == idc.BADADDR or selection[2] == idc.BADADDR:
+        if ea0 == idc.BADADDR or ea1 == idc.BADADDR:
             return
 
-        if selection[1] > selection[2]:
+        if ea0 > ea1:
             return
 
-        if selection[1] != idc.ScreenEA() and selection[2] != idc.ScreenEA():
+        if ea0 != idc.get_screen_ea() and ea1 != idc.get_screen_ea():
             return
 
         # Warning for large ranges
-        if (selection[2] - selection[1]) > 0x1000:
+        if (ea1 - ea0) > 0x1000:
             if not util.ask_yes_no('Warning: The VTable range is longer than 0x1000 bytes. Continue?', False):
                 return
 
         try:
-            self.edit_class.set_vtable_range(selection[1], selection[2])
+            self.edit_class.set_vtable_range(ea0, ea1)
             self.update_fields()
         except ValueError as e:
             idaapi.warning(str(e))
@@ -427,14 +437,14 @@ class ClassWidget(QtWidgets.QWidget):
         if column == 0:         # Go to vtable offset
             idc.jumpto(self.edit_class.vtable_start + row*4)
         elif column == 1:       # Go to address
-            idc.Jump(vm.ea)
+            idc.jumpto(vm.ea)
         elif column == 2:       # Edit signature
             dlg = SignatureDialog(vm.return_type, vm.owner.name, vm.name, vm.args, vm.is_const, vm.ctor_type, vm.dtor_type, fixed_owner_type=True)
             if dlg.exec_() != QtWidgets.QDialog.Accepted:
                 return
             vm.set_signature(dlg.name, dlg.args, dlg.return_type, dlg.is_const, dlg.ctor_type, dlg.dtor_type)
             self.vtable.setItem(row, 2, QtWidgets.QTableWidgetItem(vm.get_signature()))
-            idc.Refresh()
+            idaapi.refresh_idaview_anyway()
 
 
     def handle_add_method(self):
@@ -443,7 +453,7 @@ class ClassWidget(QtWidgets.QWidget):
         if self.edit_class is None:
             return
 
-        sel_ea = idc.ScreenEA()
+        sel_ea = idc.get_screen_ea()
 
         if sel_ea == idc.BADADDR:
             return
@@ -505,12 +515,12 @@ class ClassWidget(QtWidgets.QWidget):
             return
 
         elif column == 0:       # Go to address
-            idc.Jump(m.ea)
+            idc.jumpto(m.ea)
         elif column == 1:       # Edit signature
             dlg = SignatureDialog(m.return_type, m.owner.name, m.name, m.args, m.is_const, m.ctor_type, m.dtor_type, fixed_owner_type=True)
             if dlg.exec_() != QtWidgets.QDialog.Accepted:
                 return
             m.set_signature(dlg.name, dlg.args, dlg.return_type, dlg.is_const, dlg.ctor_type, dlg.dtor_type)
             self.methods.setItem(row, 1, QtWidgets.QTableWidgetItem(m.get_signature()))
-            idc.Refresh()
+            idaapi.refresh_idaview_anyway()
 

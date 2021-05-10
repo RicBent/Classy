@@ -1,9 +1,10 @@
 import idaapi
+import ida_kernwin
 import idc
 from sark.qt import QtWidgets, QtCore
 
-import util
-import itanium_mangler
+import classy.util as util
+import classy.itanium_mangler as itanium_mangler
 
 
 class ChooseStructDialog(QtWidgets.QDialog):
@@ -40,10 +41,10 @@ class ChooseStructDialog(QtWidgets.QDialog):
 
 
     def handle_new(self):
-        new_name = self.new_name_w.text().encode('ascii', 'replace').strip()
+        new_name = self.new_name_w.text().encode('ascii', 'replace').strip().decode()
 
         if not itanium_mangler.check_identifier(new_name):
-            idc.Warning('The name "%s" is invalid' % new_name)
+            ida_kernwin.warning('The name "%s" is invalid' % new_name)
             return
 
         struct_id = idc.get_struc_id(new_name)
@@ -56,7 +57,7 @@ class ChooseStructDialog(QtWidgets.QDialog):
 
         self.struct_id = idaapi.add_struc(idc.BADADDR, new_name, False)
         if self. struct_id == idc.BADADDR:
-            idc.Warning('Creating struct with the name "%s" failed' % new_name)
+            ida_kernwin.warning('Creating struct with the name "%s" failed' % new_name)
             return
 
         self.accept()

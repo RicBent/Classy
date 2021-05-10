@@ -1,7 +1,7 @@
 import re
 
-from uiaction import UiAction
-from util import show_about
+from classy.uiaction import UiAction
+from classy.util import show_about
 
 import sark
 import sark.qt

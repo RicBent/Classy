@@ -6,12 +6,12 @@ import sark
 import sark.qt
 from sark.qt import QtWidgets, QtCore
 
-from util import *
-from gui import *
-from menumgr import MenuMgr, MenuState
-from typedef_dialog import TypedefDialog
+from classy.util import *
+from classy.gui import *
+from classy.menumgr import MenuMgr, MenuState
+from classy.typedef_dialog import TypedefDialog
 
-import database
+import classy.database as database
 
 
 class ClassyPlugin(idaapi.plugin_t):
@@ -125,7 +125,7 @@ class ClassyPlugin(idaapi.plugin_t):
         if ask_yes_no('Are you really sure that you want to clear the Classy databse?\n', False):
             database.get().clear()
             self.gui.update_fields()
-            idc.Refresh()
+            idaapi.refresh_idaview_anyway()
 
 
     def edit_typedefs(self):
@@ -136,7 +136,7 @@ class ClassyPlugin(idaapi.plugin_t):
     def edit_pure_virtual_vals(self):
         db = database.get()
 
-        txt = idaapi.askqstr(', '.join([('0x%X' % x) for x in db.pure_virtual_vals]), "Enter pure virtual values")
+        txt = idaapi.ask_str(', '.join([('0x%X' % x) for x in db.pure_virtual_vals]), idaapi.HIST_IDENT,"Enter pure virtual values")
         if txt is None or not txt.strip():
             return
 
@@ -155,7 +155,7 @@ class ClassyPlugin(idaapi.plugin_t):
     def edit_deleted_virtual_vals(self):
         db = database.get()
 
-        txt = idaapi.askqstr(', '.join([('0x%X' % x) for x in db.deleted_virtual_vals]), "Enter deleted virtual values")
+        txt = idaapi.ask_str(', '.join([('0x%X' % x) for x in db.deleted_virtual_vals]), idaapi.HIST_IDENT,"Enter deleted virtual values")
         if txt is None or not txt.strip():
             return
 
@@ -173,7 +173,7 @@ class ClassyPlugin(idaapi.plugin_t):
 
     def refresh_all(self):
         database_entries.refresh_all()
-        idc.Refresh()
+        idaapi.refresh_idaview_anyway()
 
 
     def set_autosave_interval(self):

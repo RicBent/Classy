@@ -1,9 +1,9 @@
-import cPickle
+import _pickle as cPickle
 import idaapi
 import os
 from datetime import datetime
 
-from util import log
+from classy.util import log
 from sark.qt import QtCore
 
 
