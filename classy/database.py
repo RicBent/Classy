@@ -96,7 +96,10 @@ class ClassyDatabase(object):
 
     def save(self):
         self.save_as(self.path)
-        os.remove(self.autosave_path)
+        try:
+            os.remove(self.autosave_path)
+        except FileNotFoundError:
+            pass
 
 
     def save_as(self, path):
