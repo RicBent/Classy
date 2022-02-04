@@ -1,4 +1,4 @@
-from sark.qt import QtWidgets, QtCore
+from PyQt5 import QtWidgets, QtCore
 
 
 class AboutWindow(QtWidgets.QDialog):

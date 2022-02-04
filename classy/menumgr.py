@@ -1,10 +1,7 @@
 import re
 
 from classy.uiaction import UiAction
-from classy.util import show_about
-
-import sark
-import sark.qt
+from classy.util import show_about, main_menu
 
 
 class MenuState:
@@ -17,8 +14,9 @@ class MenuMgr:
     def __init__(self, plugin):
         self.state = MenuState.NULL
         self.actions = []
-        self.menu = sark.qt.MenuManager()
-        self.menu.add_menu('Classy')
+        
+        self.parent_menu = main_menu()
+        self.menu = self.parent_menu.addMenu('Classy')
 
         # Global actions
         self.about_action = self.create_menu_item('About', show_about)
@@ -42,7 +40,7 @@ class MenuMgr:
     def cleanup(self):
         for a in self.actions:
             a.unregister()
-        self.menu.clear()
+        self.parent_menu.removeAction(self.menu.menuAction())
 
 
     def set_state(self, state):

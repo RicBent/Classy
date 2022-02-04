@@ -1,5 +1,5 @@
 import idaapi
-from sark.qt import QtWidgets, QtCore
+from PyQt5 import QtWidgets, QtCore
 from classy.aboutwindow import AboutWindow
 
 
@@ -51,3 +51,18 @@ class EnterPressQTableWidget(QtWidgets.QTableWidget):
                 self.cellEnterPressed.emit(row, column)
                 return
         super(EnterPressQTableWidget, self).keyPressEvent(event)
+
+
+def main_window():
+    tform = idaapi.get_current_widget()
+
+    if not tform:
+        tform = idaapi.find_widget('Output window')
+
+    widget = idaapi.PluginForm.FormToPyQtWidget(tform)
+    window = widget.window()
+    return window
+
+def main_menu():
+    win = main_window()
+    return win.findChild(QtWidgets.QMenuBar)

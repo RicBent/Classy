@@ -1,4 +1,4 @@
-from sark.qt import QtWidgets, QtCore
+from PyQt5 import QtWidgets, QtCore
 import sip
 import idaapi
 import idc
@@ -141,7 +141,7 @@ class ClassyGui(idaapi.PluginForm):
         item.setText(0, c.name)
 
 
-    def generate_class_header(self):
+    def generate_class_header_to_file(self):
         item = self.class_tree.selectedItems()[0] if len(self.class_tree.selectedItems()) else None
         if item is None:
             return
@@ -159,6 +159,17 @@ class ClassyGui(idaapi.PluginForm):
         f = open(path[0], 'w')
         f.write(c.generate_cpp_definition())
         f.close()
+
+    def generate_class_header_to_clipboard(self):
+        item = self.class_tree.selectedItems()[0] if len(self.class_tree.selectedItems()) else None
+        if item is None:
+            return
+
+        c = item.data(0, QtCore.Qt.UserRole)
+        if type(c) != database_entries.Class:
+            return
+
+        QtWidgets.QApplication.clipboard().setText(c.generate_cpp_definition())
 
 
     def handle_class_tree_selection_change(self):
@@ -181,7 +192,8 @@ class ClassyGui(idaapi.PluginForm):
 
         if item is not None:
             menu.addAction('Remove', self.remove_class)
-            menu.addAction('Generate C++ Header File', self.generate_class_header)
+            menu.addAction('Generate C++ Header (File)', self.generate_class_header_to_file)
+            menu.addAction('Generate C++ Header (Clipboard)', self.generate_class_header_to_clipboard)
 
         menu.exec_(self.class_tree.mapToGlobal(point))
 
@@ -209,6 +221,7 @@ class ClassWidget(QtWidgets.QWidget):
         layout.addWidget(self.base_class, 1, 0, 1, 2)
 
         self.derived_classes = QtWidgets.QLabel()
+        self.derived_classes.setWordWrap(True)
         layout.addWidget(self.derived_classes, 2, 0, 1, 2)
 
         self.struct = util.ClickableQLabel()

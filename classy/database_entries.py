@@ -296,7 +296,7 @@ class Class(object):
         # Todo: Replace this ugly temp code
         if self.struct_id != idc.BADADDR:
             struct = idaapi.get_struc(self.struct_id)
-            raw_txt = idc.get_local_type(struct.ordinal, idc.PRTYPE_1LINE)
+            raw_txt = idc.GetLocalType(struct.ordinal, idc.PRTYPE_1LINE)
             l_idx = raw_txt.find('{')
             r_idx = raw_txt.find('}')
             segs = raw_txt[l_idx+1:r_idx].split(';')

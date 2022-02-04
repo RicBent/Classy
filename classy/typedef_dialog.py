@@ -1,6 +1,6 @@
 import idaapi
 import idc
-from sark.qt import QtWidgets, QtCore
+from PyQt5 import QtWidgets, QtCore
 
 import classy.database as database
 import classy.itanium_mangler as itanium_mangler

@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 
 from classy.util import log
-from sark.qt import QtCore
+from PyQt5 import QtCore
 
 
 class ClassyDatabase(object):

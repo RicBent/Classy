@@ -2,9 +2,7 @@ import os
 import re
 import idaapi
 
-import sark
-import sark.qt
-from sark.qt import QtWidgets, QtCore
+from PyQt5 import QtWidgets, QtCore
 
 from classy.util import *
 from classy.gui import *
