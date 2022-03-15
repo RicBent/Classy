@@ -75,7 +75,7 @@ def check_identifier(ident):
         return False
 
     for c in ident:
-        if not c.isalnum() and not c == '_':
+        if not c.isalnum() and c != '_':
             return False
 
     if ident[0].isdigit():
@@ -97,11 +97,10 @@ def brace_split(txt, char=' ', remove_empty=True):
     curr_seg = ''
 
     for c in txt:
-        if len(brace_stack):
-            if c == brace_stack[-1]:
-                brace_stack.pop()
+        if len(brace_stack) and c == brace_stack[-1]:
+            brace_stack.pop()
 
-        if c in braces.keys():
+        if c in braces:
             brace_stack.append(braces[c])
 
         if not len(brace_stack) and c == char:
@@ -251,12 +250,7 @@ def mangle_decorated_type(txt_decors, type_txt, subs=None):
         # print('Testing for names ' + '::'.join(type_segs[:i]) + ' (' + curr_mangled_nosubs + ')')
 
         if not curr_mangled_nosubs or curr_mangled_nosubs in subs:
-            if curr_mangled_nosubs:
-                # print('Found ' + curr_mangled_nosubs + ' as ' + subs[curr_mangled_nosubs])
-                curr_mangled = subs[curr_mangled_nosubs]
-            else:
-                curr_mangled = ''
-                # print('Did not find any substitution')
+            curr_mangled = subs[curr_mangled_nosubs] if curr_mangled_nosubs else ''
             while i < len(type_segs):
                 curr_mangled += len_encode(type_segs[i])
                 curr_mangled_nosubs += len_encode(type_segs[i])
@@ -265,11 +259,7 @@ def mangle_decorated_type(txt_decors, type_txt, subs=None):
                 i += 1
             break
 
-    if len(type_segs) == 1:
-        ret = curr_mangled
-    else:
-        ret = 'N' + curr_mangled + 'E'
-
+    ret = curr_mangled if len(type_segs) == 1 else f'N{curr_mangled}E'
     for d in reversed(decors):
         ret = d + ret
         curr_mangled = d + curr_mangled
@@ -325,13 +315,12 @@ def mangle_argument(txt, typedefs=None, subs=None):
     # Current segment layout: type, decors, optional label
 
     # Filter out label
-    if len(segs) >= 2:
-        if not segs[-1] in DECORS.keys():   # Already no label?
-            if not check_identifier(segs[-1]):
-                raise ValueError('Invalid identifier "%s"' % segs[-1])
-            if segs[-1] in BUILTIN_TYPES:
-                raise ValueError('Invalid identifier "%s"' % segs[-1])
-            del segs[-1]
+    if len(segs) >= 2 and segs[-1] not in DECORS.keys():
+        if not check_identifier(segs[-1]):
+            raise ValueError('Invalid identifier "%s"' % segs[-1])
+        if segs[-1] in BUILTIN_TYPES:
+            raise ValueError('Invalid identifier "%s"' % segs[-1])
+        del segs[-1]
 
     # Check decors
     decors = segs[1:]
@@ -361,10 +350,7 @@ def mangle_arguments(txt, typedefs=None, subs=None):
     if not len(args) or (len(args) == 1 and (not args[0] or args[0] == 'void')):
         return 'v'
 
-    ret = ''
-    for a in args:
-        ret += mangle_argument(a, typedefs, subs)
-    return ret
+    return ''.join(mangle_argument(a, typedefs, subs) for a in args)
 
 
 # Basically the main function of all this
@@ -407,7 +393,7 @@ def mangle_function(txt, typedefs=None, ctor_type=None, dtor_type=None):
                 raise ValueError('No or invalid ctor type given')
             identifier_segs[-1] = 'C%u' % ctor_type
             is_cdtor = True
-        elif identifier_segs[-1] == ('~' + identifier_segs[-2]):    # dtor
+        elif identifier_segs[-1] == f'~{identifier_segs[-2]}':    # dtor
             if dtor_type not in [0, 1, 2]:
                 raise ValueError('No or invalid dtor type given')
             identifier_segs[-1] = 'D%u' % dtor_type
@@ -417,15 +403,15 @@ def mangle_function(txt, typedefs=None, ctor_type=None, dtor_type=None):
         if not check_identifier(s):
             raise ValueError('Invalid identifier "%s"' % s)
 
-    mangled_type = ''.join(len_encode(ts) for ts in identifier_segs[:len(identifier_segs)-1])
+    mangled_type = ''.join(len_encode(ts) for ts in identifier_segs[:-1])
     mangled_type += identifier_segs[-1] if is_cdtor else len_encode(identifier_segs[-1])
 
     if 'const' in post_brace_segs:
         if len(identifier_segs) < 2:
             raise ValueError('Function outside struct/class may not be const')
-        mangled_type = 'K' + mangled_type
+        mangled_type = f'K{mangled_type}'
     if len(identifier_segs) > 1:
-        mangled_type = 'N' + mangled_type + 'E'
+        mangled_type = f'N{mangled_type}E'
     ret += mangled_type
 
     for i in range(1, len(identifier_segs)):

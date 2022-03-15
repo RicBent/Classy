@@ -82,13 +82,13 @@ class Class(object):
         for vm in self.vmethods:
             if vm.name == old_name:
                 vm.name = new_name
-            if vm.name == '~' + old_name:
-                vm.name = '~' + new_name
+            if vm.name == f'~{old_name}':
+                vm.name = f'~{new_name}'
         for m in self.methods:
             if m.name == old_name:
                 m.name = new_name
-            if m.name == '~' + old_name:
-                m.name = '~' + new_name
+            if m.name == f'~{old_name}':
+                m.name = f'~{new_name}'
 
         self.refresh()
 
@@ -131,9 +131,7 @@ class Class(object):
 
 
     def vtable_start_idx(self):
-        if self.base is None:
-            return 0
-        return len(self.base.vmethods)
+        return 0 if self.base is None else len(self.base.vmethods)
 
 
     def reset_vtable(self):
@@ -150,13 +148,12 @@ class Class(object):
     def init_vtable(self):
         my_start_idx = self.vtable_start_idx()
 
+        pointer_size = idaapi.DEF_ADDRSIZE
         # Fix: support 64bit work
         if idc.__EA64__:
-            pointer_size = idaapi.DEF_ADDRSIZE
             pfn_make_ptr = lambda x: ida_bytes.create_data(x, idc.FF_QWORD, 8, idaapi.BADADDR) #MakeQword
             pfn_get_ptr_value = ida_bytes.get_qword
         else:
-            pointer_size = idaapi.DEF_ADDRSIZE
             pfn_make_ptr =  lambda x: ida_bytes.create_data(x, idc.FF_DWORD, 4, idaapi.BADADDR) #ida_bytes.MakeDword
             pfn_get_ptr_value = ida_bytes.get_dword
 
@@ -217,7 +214,10 @@ class Class(object):
             return
 
         if new_struct_id in db.classes_by_struct_id:
-            raise ValueError('The struct is already assigned to the class %s' % db.classes_by_struct_id[new_struct_id]).name
+            raise ValueError(
+                f'The struct is already assigned to the class {db.classes_by_struct_id[new_struct_id]}'
+            ).name
+
 
         self.unlink_struct(delete_orphaned)
 
@@ -238,8 +238,8 @@ class Class(object):
             idc.del_struc(self.struct_id)
         else:
             struct_name = idc.get_struc_name(self.struct_id)
-            idc.set_struc_cmt(self.struct_id, 'Orphaned from %s' % self.name, False)
-            idc.set_struc_name(self.struct_id, '%s_orphaned' % struct_name)
+            idc.set_struc_cmt(self.struct_id, f'Orphaned from {self.name}', False)
+            idc.set_struc_name(self.struct_id, f'{struct_name}_orphaned')
 
         self.struct_id = idc.BADADDR
 
@@ -248,12 +248,17 @@ class Class(object):
         if self.struct_id == idc.BADADDR:
             return
 
-        idc.set_struc_cmt(self.struct_id, 'Linked to %s' % self.name, False)
+        idc.set_struc_cmt(self.struct_id, f'Linked to {self.name}', False)
 
 
     def generate_cpp_definition(self):
-        contents = []
-        contents.append('class %s%s\n{\npublic:' % (self.name, '' if self.base is None else (' : public %s' % self.base.name)))
+        contents = [
+            'class %s%s\n{\npublic:'
+            % (
+                self.name,
+                '' if self.base is None else f' : public {self.base.name}',
+            )
+        ]
 
         seen_dtor = False
 
@@ -261,13 +266,13 @@ class Class(object):
         for idx in range(self.vtable_start_idx()):
             vm = self.vmethods[idx]
             if vm.owner == self and type(vm) == OverrideMethod:
-                if vm.name == '~' + self.name:
+                if vm.name == f'~{self.name}':
                     if seen_dtor:
                         continue
                     seen_dtor = True
-                    contents.append('    virtual %s;' % vm.get_signature(include_owner=False))
+                    contents.append(f'    virtual {vm.get_signature(include_owner=False)};')
                 else:
-                    contents.append('    %s override;' % vm.get_signature(include_owner=False))
+                    contents.append(f'    {vm.get_signature(include_owner=False)} override;')
 
         if self.vtable_start_idx() > 0:
             contents.append('')
@@ -276,22 +281,24 @@ class Class(object):
         for idx in range(self.vtable_start_idx(), len(self.vmethods)):
             vm = self.vmethods[idx]
             if type(vm) == VirtualMethod:   # If this isn't the case something is very wrong
-                if vm.name == '~' + self.name:
+                if vm.name == f'~{self.name}':
                     if seen_dtor:
                         continue
-                    seen_dtor = True
-                contents.append('    virtual %s;' % vm.get_signature(include_owner=False))
+                    else:
+                        seen_dtor = True
+                contents.append(f'    virtual {vm.get_signature(include_owner=False)};')
 
         if (len(self.vmethods) - self.vtable_start_idx()) > 0:
             contents.append('')
 
         # Methods
         for m in self.methods:
-            if m.name == '~' + self.name:
+            if m.name == f'~{self.name}':
                 if seen_dtor:
                     continue
-                seen_dtor = True
-            contents.append('    %s;' % m.get_signature(include_owner=False))
+                else:
+                    seen_dtor = True
+            contents.append(f'    {m.get_signature(include_owner=False)};')
 
         # Todo: Replace this ugly temp code
         if self.struct_id != idc.BADADDR:
@@ -302,9 +309,7 @@ class Class(object):
             segs = raw_txt[l_idx+1:r_idx].split(';')
             if len(segs):
                 contents.append('')
-            for s in segs:
-                contents.append('    %s;' % s)
-
+            contents.extend(f'    {s};' for s in segs)
         contents.append('};\n')
 
         return '\n'.join(contents)
@@ -322,8 +327,7 @@ class Class(object):
 
         if len(self.methods):
             contents.append('/* functions */')
-            for m in self.methods:
-                contents.append('%s = 0x%X;' % (m.get_mangled(), m.ea))
+            contents.extend('%s = 0x%X;' % (m.get_mangled(), m.ea) for m in self.methods)
             contents.append('')
 
         return '\n'.join(contents)
@@ -379,29 +383,13 @@ class Class(object):
             else:
                 base_class = db.classes_by_name[base_name]
                 if not base_class.can_be_derived():
-                    idaapi.warning('The class %s cannot be derived because the VTable is not setup correctly' % base_class.name)
+                    idaapi.warning(
+                        f'The class {base_class.name} cannot be derived because the VTable is not setup correctly'
+                    )
+
                     return None
 
         return Class(name, base_class)
-
-        '''
-        safe_name = name.replace('::', '_')
-    
-        struct = idaapi.get_struc_id(safe_name)
-        if struct != idaapi.BADADDR:
-            if struct in database.get().classes_by_struct.keys():
-                idaapi.warning('The struct "%s" is already associated with a struct!' % safe_name)
-                return
-    
-            if not util.ask_yes_no('The struct "%s" already exists. Continue?' % safe_name, True):
-                return
-    
-        else:
-            struct = idaapi.add_struc(idaapi.BADADDR, safe_name, 0)
-            if struct == idaapi.BADADDR:
-                idaapi.warning('Creating struct "%s" for class "%s" failed!' % (safe_name, name))
-                return
-        '''
 
 
 class Method(object):
@@ -460,7 +448,7 @@ class Method(object):
 
     @staticmethod
     def s_make_signature(owner, name, args='', is_const=False, return_type=''):
-        signature = ('%s::' % owner.name) if owner is not None else ''
+        signature = f'{owner.name}::' if owner is not None else ''
         signature += name
         signature += '('
         signature += args
@@ -468,7 +456,7 @@ class Method(object):
         if is_const:
             signature += ' const'
         if return_type:
-            signature = return_type + ' ' + signature
+            signature = f'{return_type} {signature}'
         return signature
 
 
@@ -481,10 +469,10 @@ class Method(object):
 
 
     def copy_signature(self, other):
-        if (other.owner is not None) and (other.name == '~' + other.owner.name):
+        if other.owner is not None and other.name == f'~{other.owner.name}':
             if self.owner is None:
                 raise ValueError('Cannot copy dtor to non-owned function')
-            self.name = '~' + self.owner.name
+            self.name = f'~{self.owner.name}'
         else:
             self.name = other.name
         self.args = other.args
@@ -507,8 +495,7 @@ class Method(object):
         if self.ea == idc.BADADDR:
             return
 
-        comment = self.get_comment()
-        if comment:
+        if comment := self.get_comment():
             idc.set_func_cmt(self.ea, comment, False)
 
 
@@ -575,7 +562,7 @@ class VirtualMethod(Method):
                 if not o.is_pure_virtual():
                     lines.append('  - 0x%X : %s' % (o.ea, o.owner.name))
                 else:
-                    lines.append('  - pure virtual : %s' % o.owner.name)
+                    lines.append(f'  - pure virtual : {o.owner.name}')
         else:
             lines.append('Overridden by: None')
 
@@ -667,8 +654,8 @@ class OverrideMethod(VirtualMethod):
     def set_signature(self, name, args, return_type='void', is_const=False, ctor_type=1, dtor_type=1):
         root_method = self.get_root_method()
 
-        if name == '~' + self.owner.name:
-            root_name = '~' + root_method.owner.name
+        if name == f'~{self.owner.name}':
+            root_name = f'~{root_method.owner.name}'
         else:
             root_name = name
 

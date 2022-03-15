@@ -99,11 +99,7 @@ class ClassyGui(idaapi.PluginForm):
         if c is None:
             return
 
-        if c.base is not None:
-            parent_item = self.items_by_class[c.base]
-        else:
-            parent_item = None
-
+        parent_item = self.items_by_class[c.base] if c.base is not None else None
         item = self.add_child_class_item(parent_item, c)
 
         self.class_tree.clearSelection()
@@ -156,9 +152,8 @@ class ClassyGui(idaapi.PluginForm):
         if not path[0]:
             return
 
-        f = open(path[0], 'w')
-        f.write(c.generate_cpp_definition())
-        f.close()
+        with open(path[0], 'w') as f:
+            f.write(c.generate_cpp_definition())
 
     def generate_class_header_to_clipboard(self):
         item = self.class_tree.selectedItems()[0] if len(self.class_tree.selectedItems()) else None
@@ -303,28 +298,29 @@ class ClassWidget(QtWidgets.QWidget):
 
         else:
             self.setEnabled(True)
-            self.name.setText('Name: %s' % self.edit_class.name)
-            self.base_class.setText('Base class: %s' % (self.edit_class.base.name if self.edit_class.base is not None else 'None'))
+            self.name.setText(f'Name: {self.edit_class.name}')
+            self.base_class.setText(
+                f"Base class: {self.edit_class.base.name if self.edit_class.base is not None else 'None'}"
+            )
 
-            derived_classes_txts = []
-            for dc in self.edit_class.derived:
-                derived_classes_txts.append(dc.name)
+
+            derived_classes_txts = [dc.name for dc in self.edit_class.derived]
             derived_classes_txt = ', '.join(derived_classes_txts)
             if not derived_classes_txt:
                 derived_classes_txt = 'None'
-            self.derived_classes.setText('Derived classes: %s' % derived_classes_txt)
+            self.derived_classes.setText(f'Derived classes: {derived_classes_txt}')
 
             if self.edit_class.struct_id == idc.BADADDR:
                 struct_txt = 'Not set'
             else:
                 struct_txt = '%s (%d)' % (idc.get_struc_name(self.edit_class.struct_id), idc.get_struc_idx(self.edit_class.struct_id))
-            self.struct.setText('Struct: %s' % struct_txt)
+            self.struct.setText(f'Struct: {struct_txt}')
 
             if self.edit_class.vtable_start is None or self.edit_class.vtable_end is None:
                 vtable_range_txt = 'Not set'
             else:
                 vtable_range_txt = '0x%X - 0x%X' % (self.edit_class.vtable_start, self.edit_class.vtable_end)
-            self.vtable_range.setText('VTable: %s' % vtable_range_txt)
+            self.vtable_range.setText(f'VTable: {vtable_range_txt}')
 
             self.vtable.setRowCount(len(self.edit_class.vmethods))
             for idx, vm in enumerate(self.edit_class.vmethods):
@@ -430,9 +426,11 @@ class ClassWidget(QtWidgets.QWidget):
             return
 
         # Warning for large ranges
-        if (ea1 - ea0) > 0x1000:
-            if not util.ask_yes_no('Warning: The VTable range is longer than 0x1000 bytes. Continue?', False):
-                return
+        if (ea1 - ea0) > 0x1000 and not util.ask_yes_no(
+            'Warning: The VTable range is longer than 0x1000 bytes. Continue?',
+            False,
+        ):
+            return
 
         try:
             self.edit_class.set_vtable_range(ea0, ea1)

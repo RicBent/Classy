@@ -118,21 +118,16 @@ class SignatureDialog(QtWidgets.QDialog):
             owner_last_type = self.owner_type.split('::')[-1]
             if self.name == owner_last_type:
                 self.return_type = ''
-            elif self.name == '~' + owner_last_type:
+            elif self.name == f'~{owner_last_type}':
                 self.return_type = ''
                 self.args = ''
 
         signature_segs = []
         if self.return_type:
-            signature_segs.append(self.return_type)
-            signature_segs.append(' ')
+            signature_segs.extend((self.return_type, ' '))
         if self.owner_type:
-            signature_segs.append(self.owner_type)
-            signature_segs.append('::')
-        signature_segs.append(self.name)
-        signature_segs.append('(')
-        signature_segs.append(self.args)
-        signature_segs.append(')')
+            signature_segs.extend((self.owner_type, '::'))
+        signature_segs.extend((self.name, '(', self.args, ')'))
         if self.is_const:
             signature_segs.append(' const')
         self.signature = ''.join(signature_segs)
@@ -149,11 +144,11 @@ class SignatureDialog(QtWidgets.QDialog):
             self.status_w.setText('Valid')
         except (ValueError, NotImplementedError) as e:
             self.status = str(e)
-            self.status_w.setText('Invalid: ' + self.status)
+            self.status_w.setText(f'Invalid: {self.status}')
         self.mangled_w.setText(str(self.mangled))
 
     def handle_ok(self):
         if not self.is_signature_valid:
-            idaapi.warning("The signature is not valid: " + self.status)
+            idaapi.warning(f"The signature is not valid: {self.status}")
         else:
             self.accept()

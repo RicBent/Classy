@@ -32,7 +32,7 @@ class ClassyPlugin(idaapi.plugin_t):
             try:
                 db.open()
             except Exception as e:
-                idaapi.warning('Loading Classy database failed: %s' % str(e))
+                idaapi.warning(f'Loading Classy database failed: {str(e)}')
 
         if db.is_open:
             self.menumgr.set_state(MenuState.DATABASE_OPENED)
@@ -98,7 +98,7 @@ class ClassyPlugin(idaapi.plugin_t):
         try:
             db.open()
         except Exception as e:
-            idaapi.warning('Creating/opening Classy database failed: %s' % str(e))
+            idaapi.warning(f'Creating/opening Classy database failed: {str(e)}')
 
         if db.is_open:
             self.menumgr.set_state(MenuState.DATABASE_OPENED)
@@ -113,9 +113,8 @@ class ClassyPlugin(idaapi.plugin_t):
         if not path[0]:
             return
 
-        f = open(path[0], 'w')
-        f.write(database.get().generate_symbols())
-        f.close()
+        with open(path[0], 'w') as f:
+            f.write(database.get().generate_symbols())
 
 
 

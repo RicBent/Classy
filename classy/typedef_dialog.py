@@ -44,7 +44,7 @@ class TypedefDialog(QtWidgets.QDialog):
 
         self.list.clear()
         for t in db.typedefs:
-            item = QtWidgets.QListWidgetItem('typedef %s %s;' % (db.typedefs[t], t))
+            item = QtWidgets.QListWidgetItem(f'typedef {db.typedefs[t]} {t};')
             item.setData(QtCore.Qt.UserRole, t)
             self.list.addItem(item)
 

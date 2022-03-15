@@ -60,8 +60,7 @@ def main_window():
         tform = idaapi.find_widget('Output window')
 
     widget = idaapi.PluginForm.FormToPyQtWidget(tform)
-    window = widget.window()
-    return window
+    return widget.window()
 
 def main_menu():
     win = main_window()

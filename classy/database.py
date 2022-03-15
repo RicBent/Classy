@@ -24,17 +24,15 @@ class ClassyDatabase(object):
         self.is_open = False
 
         idb_path = idaapi.get_path(idaapi.PATH_TYPE_IDB)
-        self.path = os.path.splitext(idb_path)[0] + '.cdb'
-        self.autosave_path = os.path.splitext(idb_path)[0] + '.autosave.cdb'
+        self.path = f'{os.path.splitext(idb_path)[0]}.cdb'
+        self.autosave_path = f'{os.path.splitext(idb_path)[0]}.autosave.cdb'
 
         self.autosave_timer = QtCore.QTimer()
         self.autosave_timer.timeout.connect(self.autosave)
 
 
     def is_created(self):
-        if self.is_open:
-            return True
-        return os.path.isfile(self.path)
+        return True if self.is_open else os.path.isfile(self.path)
 
 
     def delete(self):
@@ -56,7 +54,10 @@ class ClassyDatabase(object):
                 raise Exception('Database is corrupt!')
 
             if self.version != self.CURRENT_VERSION:
-                raise Exception('Version Mismatch! File: %s, Plugin: %s' % (self.version, self.CURRENT_VERSION))
+                raise Exception(
+                    f'Version Mismatch! File: {self.version}, Plugin: {self.CURRENT_VERSION}'
+                )
+
 
         except IOError:
             pass
@@ -84,7 +85,7 @@ class ClassyDatabase(object):
                 setattr(self, key, default)
                 return getattr(self, key)
             except KeyError:
-                raise AttributeError('Classy database has no attribute %s' % key)
+                raise AttributeError(f'Classy database has no attribute {key}')
 
 
     def __setattr__(self, key, value):
@@ -130,17 +131,16 @@ class ClassyDatabase(object):
 
 
     def generate_symbols(self):
-        contents = []
-        contents.append('/*\n * Classy exported symbols')
-        contents.append(datetime.now().strftime(' * %x %X'))
-        contents.append(' */\n\n')
+        contents = [
+            '/*\n * Classy exported symbols',
+            datetime.now().strftime(' * %x %X'),
+            ' */\n\n',
+        ]
 
         if len(self.classes_by_name) > 0:
             contents.append('/*\n * Classes\n */\n\n')
             for c_name in self.classes_by_name:
-                contents.append(self.classes_by_name[c_name].generate_symbols())
-                contents.append('')
-
+                contents.extend((self.classes_by_name[c_name].generate_symbols(), ''))
         return '\n'.join(contents)
 
 
