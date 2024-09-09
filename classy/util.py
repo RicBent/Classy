@@ -62,7 +62,3 @@ def main_window():
     widget = idaapi.PluginForm.FormToPyQtWidget(tform)
     window = widget.window()
     return window
-
-def main_menu():
-    win = main_window()
-    return win.findChild(QtWidgets.QMenuBar)

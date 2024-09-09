@@ -1,7 +1,8 @@
 import re
 
+import ida_kernwin
 from classy.uiaction import UiAction
-from classy.util import show_about, main_menu
+from classy.util import show_about
 
 
 class MenuState:
@@ -15,11 +16,10 @@ class MenuMgr:
         self.state = MenuState.NULL
         self.actions = []
         
-        self.parent_menu = main_menu()
-        self.menu = self.parent_menu.addMenu('Classy')
+        self.menu = ida_kernwin.create_menu("Classy", "Classy")
 
         # Global actions
-        self.about_action = self.create_menu_item('About', show_about)
+        self.about_action = self.create_menu_item("About", show_about)
 
         # Database closed actions
         self.action_create_open = self.create_menu_item("Create/open database", plugin.create_open_database)
@@ -40,7 +40,7 @@ class MenuMgr:
     def cleanup(self):
         for a in self.actions:
             a.unregister()
-        self.parent_menu.removeAction(self.menu.menuAction())
+        #self.menu.unregister_action(self.menu.menuAction())
 
 
     def set_state(self, state):
