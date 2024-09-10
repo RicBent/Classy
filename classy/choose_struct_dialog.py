@@ -66,8 +66,7 @@ class ChooseStructDialog(QtWidgets.QDialog):
 
     def handle_existing(self):
         struct = ida_typeinf.tinfo_t()
-        struct = ida_kernwin.choose_struct(struct, 'Select an existing struct')
-        if struct is None:
+        if not ida_kernwin.choose_struct(struct, 'Select an existing struct'):
             return
 
         self.struct_id = struct.force_tid()
