@@ -1,6 +1,7 @@
-import idaapi
-import ida_kernwin
 import idc
+import idaapi
+import ida_typeinf
+import ida_kernwin
 from PyQt5 import QtWidgets, QtCore
 
 import classy.util as util
@@ -55,8 +56,8 @@ class ChooseStructDialog(QtWidgets.QDialog):
                 return
             return
 
-        self.struct_id = idaapi.add_struc(idc.BADADDR, new_name, False)
-        if self. struct_id == idc.BADADDR:
+        self.struct_id = idc.add_struc(idc.BADADDR, new_name, False)
+        if self.struct_id == idc.BADADDR:
             ida_kernwin.warning('Creating struct with the name "%s" failed' % new_name)
             return
 
@@ -64,10 +65,11 @@ class ChooseStructDialog(QtWidgets.QDialog):
 
 
     def handle_existing(self):
-        struct = idaapi.choose_struc('Select an existing struct')
-        if struct is None:
+        struct = ida_typeinf.tinfo_t()
+        if not ida_kernwin.choose_struct(struct, 'Select an existing struct'):
             return
-        self.struct_id = struct.id
+
+        self.struct_id = struct.force_tid()
         self.accept()
 
 

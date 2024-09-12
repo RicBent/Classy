@@ -317,7 +317,8 @@ class ClassWidget(QtWidgets.QWidget):
             if self.edit_class.struct_id == idc.BADADDR:
                 struct_txt = 'Not set'
             else:
-                struct_txt = '%s (%d)' % (idc.get_struc_name(self.edit_class.struct_id), idc.get_struc_idx(self.edit_class.struct_id))
+                struct_name = idc.get_struc_name(self.edit_class.struct_id)
+                struct_txt = '%s (%d)' % (struct_name, idc.get_struc_id(struct_name))
             self.struct.setText('Struct: %s' % struct_txt)
 
             if self.edit_class.vtable_start is None or self.edit_class.vtable_end is None:
@@ -415,6 +416,7 @@ class ClassWidget(QtWidgets.QWidget):
 
         if not success:
             idaapi.warning('Please, select region in ida dissasembler')
+            return
 
         ea0 = p0.place(view).ea
         ea1 = p1.place(view).ea
