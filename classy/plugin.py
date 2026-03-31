@@ -2,14 +2,15 @@ import os
 import re
 import idaapi
 
-from PySide6 import QtWidgets, QtCore
+from PySide6 import QtWidgets
 
-from classy.util import *
-from classy.gui import *
+from classy.util import ask_yes_no, log, show_about
+from classy.gui import ClassyGui
 from classy.menumgr import MenuMgr, MenuState
 from classy.typedef_dialog import TypedefDialog
 
 import classy.database as database
+import classy.database_entries as database_entries
 
 
 class ClassyPlugin(idaapi.plugin_t):

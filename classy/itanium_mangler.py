@@ -139,13 +139,15 @@ def apply_typedefs(segs, typedefs):
 
 
 def fix_multi_seg_types(segs):
-    for l in range(len(segs)):
+    i = 0
+    while i < len(segs):
         for mst in MULTI_SEGMENT_TYPES:
-            r = l + len(mst)
-            if mst == segs[l:r]:
-                del segs[l:r]
-                segs.insert(l, '_'.join(mst))
+            end = i + len(mst)
+            if segs[i:end] == mst:
+                segs[i:end] = ['_'.join(mst)]
                 break
+        else:
+            i += 1
 
 
 def mangle_type(txt, pre_and_postfix=True):
@@ -326,7 +328,7 @@ def mangle_argument(txt, typedefs=None, subs=None):
 
     # Filter out label
     if len(segs) >= 2:
-        if not segs[-1] in DECORS.keys():   # Already no label?
+        if segs[-1] not in DECORS.keys():   # Already no label?
             if not check_identifier(segs[-1]):
                 raise ValueError('Invalid identifier "%s"' % segs[-1])
             if segs[-1] in BUILTIN_TYPES:

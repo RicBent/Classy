@@ -5,10 +5,9 @@ from classy.aboutwindow import AboutWindow
 
 def ask_yes_no(text, yes_is_default = True):
     ret = QtWidgets.QMessageBox.question(None, "Classy", text,
-                                         QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
-                                         defaultButton=(QtWidgets.QMessageBox.Yes
-                                                        if yes_is_default else
-                                                        QtWidgets.QMessageBox.No))
+        QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+        defaultButton=(QtWidgets.QMessageBox.Yes
+            if yes_is_default else QtWidgets.QMessageBox.No))
 
     return ret == QtWidgets.QMessageBox.Yes
 
@@ -22,8 +21,8 @@ def show_about():
 
 
 class ClickableQLabel(QtWidgets.QLabel):
-  clicked = QtCore.Signal()
-  doubleClicked = QtCore.Signal()
+    clicked = QtCore.Signal()
+    doubleClicked = QtCore.Signal()
 
     def __init__(self, parent=None):
         QtWidgets.QLabel.__init__(self, parent)
@@ -36,7 +35,7 @@ class ClickableQLabel(QtWidgets.QLabel):
 
 
 class EnterPressQTableWidget(QtWidgets.QTableWidget):
-  cellEnterPressed = QtCore.Signal(int, int)
+    cellEnterPressed = QtCore.Signal(int, int)
 
     def __init__(self, parent=None):
         super(EnterPressQTableWidget, self).__init__(parent)

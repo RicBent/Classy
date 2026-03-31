@@ -1,5 +1,4 @@
 import idaapi
-import idc
 from PySide6 import QtWidgets, QtCore
 
 import classy.database as database
