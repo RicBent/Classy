@@ -25,16 +25,16 @@ class MenuMgr:
         self.action_create_open = self.create_menu_item("Create/open database", plugin.create_open_database)
 
         # Database opened actions
-        self.action_show_gui = self.create_menu_item("Show GUI", plugin.show_gui)
-        self.action_save = self.create_menu_item("Save Database", plugin.save)
-        self.action_save_as = self.create_menu_item("Save Database As...", plugin.save_as)
-        self.action_export_all_symbols = self.create_menu_item("Export all Symbols...", plugin.export_all_symbols)
-        self.action_edit_typedefs = self.create_menu_item("Edit Typedefs...", plugin.edit_typedefs)
-        self.action_set_pure_virtuals = self.create_menu_item("Set pure virtual values...", plugin.edit_pure_virtual_vals)
-        self.action_set_deleted_virtuals = self.create_menu_item("Set deleted virtual values...", plugin.edit_deleted_virtual_vals)
+        self.action_show_gui              = self.create_menu_item("Show GUI", plugin.show_gui)
+        self.action_save                  = self.create_menu_item("Save Database", plugin.save)
+        self.action_save_as               = self.create_menu_item("Save Database As...", plugin.save_as)
+        self.action_export_all_symbols    = self.create_menu_item("Export all Symbols...", plugin.export_all_symbols)
+        self.action_edit_typedefs         = self.create_menu_item("Edit Typedefs...", plugin.edit_typedefs)
+        self.action_set_pure_virtuals     = self.create_menu_item("Set pure virtual values...", plugin.edit_pure_virtual_vals)
+        self.action_set_deleted_virtuals  = self.create_menu_item("Set deleted virtual values...", plugin.edit_deleted_virtual_vals)
         self.action_set_autosave_interval = self.create_menu_item("Set autosave interval...", plugin.set_autosave_interval)
-        self.action_refresh_all = self.create_menu_item("Refresh all", plugin.refresh_all)
-        self.action_clear_database = self.create_menu_item("Clear Database", plugin.clear_database)
+        self.action_refresh_all           = self.create_menu_item("Refresh all", plugin.refresh_all)
+        self.action_clear_database        = self.create_menu_item("Clear Database", plugin.clear_database)
 
 
     def cleanup(self):

@@ -40,8 +40,10 @@ class ClassyDatabase(object):
 
         try:
             os.remove(self.path)
-        except:
+        except FileNotFoundError:
             pass
+        except OSError as e:
+            print(f"Failed to delete {self.path}: {e}")
 
     def open(self):
         try:
@@ -107,6 +109,7 @@ class ClassyDatabase(object):
     def clear(self):
         self.data = {}
         self.initialize()
+        log('Classy database cleared')
 
     def set_autosave_interval(self, interval):
         self.autosave_interval = interval

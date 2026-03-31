@@ -1,8 +1,7 @@
 import idc
-import idaapi
 import ida_typeinf
 import ida_kernwin
-from PySide6 import QtWidgets, QtCore
+from PySide6 import QtWidgets
 
 import classy.util as util
 import classy.itanium_mangler as itanium_mangler

@@ -141,13 +141,17 @@ class Class(object):
         my_start_idx = self.vtable_start_idx()
 
         # Fix: support 64bit work
+        pointer_size = idaapi.DEF_ADDRSIZE
+
         if idc.__EA64__:
-            pointer_size = idaapi.DEF_ADDRSIZE
-      def pfn_make_ptr(x): return ida_bytes.create_data(x, idc.FF_QWORD, 8, idaapi.BADADDR)  # MakeQword
+            def pfn_make_ptr(x):
+                return ida_bytes.create_data(x, idc.FF_QWORD, 8, idaapi.BADADDR)
+
             pfn_get_ptr_value = ida_bytes.get_qword
         else:
-            pointer_size = idaapi.DEF_ADDRSIZE
-      def pfn_make_ptr(x): return ida_bytes.create_data(x, idc.FF_DWORD, 4, idaapi.BADADDR)  # ida_bytes.MakeDword
+            def pfn_make_ptr(x):
+                return ida_bytes.create_data(x, idc.FF_DWORD, 4, idaapi.BADADDR)
+
             pfn_get_ptr_value = ida_bytes.get_dword
 
         for idx, ea in enumerate(range(self.vtable_start, self.vtable_end, pointer_size)):
@@ -157,30 +161,37 @@ class Class(object):
 
             if idx < my_start_idx:
                 base_method = self.base.vmethods[idx]
-                if base_method.is_dst_equal(dst):                   # Method from base class
+
+                if base_method.is_dst_equal(dst):  # Method from base class
                     self.vmethods.append(self.base.vmethods[idx])
-                elif Method.s_is_pure_virtual_dst(dst):             # New pure virtual override
+
+                elif Method.s_is_pure_virtual_dst(dst):  # New pure virtual override
                     opvm = PureVirtualOverrideMethod(self, base_method, idx)
                     opvm.refresh()
                     self.vmethods.append(opvm)
-                elif Method.s_is_deleted_virtual_dst(dst):          # New deleted override
+
+                elif Method.s_is_deleted_virtual_dst(dst):  # New deleted override
                     dom = DeletedOverrideMethod(self, base_method, idx)
                     dom.refresh()
                     self.vmethods.append(dom)
-                else:                                               # New override
+
+                else:  # New override
                     om = OverrideMethod(dst, self, base_method, idx)
                     om.refresh()
                     self.vmethods.append(om)
-            elif Method.s_is_pure_virtual_dst(dst):                 # New pure virtual
-                pvm = PureVirtualMethod(self, 'vf%X' % (idx*4), idx)
+
+            elif Method.s_is_pure_virtual_dst(dst):  # New pure virtual
+                pvm = PureVirtualMethod(self, f'vf{idx * 4:X}', idx)
                 pvm.refresh()
                 self.vmethods.append(pvm)
-            elif Method.s_is_deleted_virtual_dst(dst):              # New deleted virtual
-                pvm = DeletedVirtualMethod(self, 'vf%X' % (idx*4), idx)
+
+            elif Method.s_is_deleted_virtual_dst(dst):  # New deleted virtual
+                pvm = DeletedVirtualMethod(self, f'vf{idx * 4:X}', idx)
                 pvm.refresh()
                 self.vmethods.append(pvm)
-            else:                                                   # New virtual
-                vm = VirtualMethod(dst, self, 'vf%X' % (idx*4), idx)
+
+            else:  # New virtual
+                vm = VirtualMethod(dst, self, f'vf{idx * 4:X}', idx)
                 vm.refresh()
                 self.vmethods.append(vm)
 
@@ -237,14 +248,19 @@ class Class(object):
 
     def generate_cpp_definition(self):
         contents = []
-        contents.append('class %s%s\n{\npublic:' % (self.name, '' if self.base is None else (' : public %s' % self.base.name)))
+        contents.append(
+            'class %s%s\n{\npublic:' % (
+                self.name,
+                '' if self.base is None else (' : public %s' % self.base.name)
+            )
+        )
 
         seen_dtor = False
 
         # Overrides
         for idx in range(self.vtable_start_idx()):
             vm = self.vmethods[idx]
-            if vm.owner == self and type(vm) == OverrideMethod:
+            if vm.owner == self and type(vm) is OverrideMethod:
                 if vm.name == '~' + self.name:
                     if seen_dtor:
                         continue
@@ -259,7 +275,7 @@ class Class(object):
         # New virtuals
         for idx in range(self.vtable_start_idx(), len(self.vmethods)):
             vm = self.vmethods[idx]
-            if type(vm) == VirtualMethod:   # If this isn't the case something is very wrong
+            if type(vm) is VirtualMethod:
                 if vm.name == '~' + self.name:
                     if seen_dtor:
                         continue
@@ -277,19 +293,21 @@ class Class(object):
                 seen_dtor = True
             contents.append('    %s;' % m.get_signature(include_owner=False))
 
-        # Todo: Replace this ugly temp code
         if self.struct_id != idc.BADADDR:
-      # IDA 9.x: Use ida_typeinf.tinfo_t instead of ida_struct.get_struc
-      tif = ida_typeinf.tinfo_t()
-      if tif.get_type_by_tid(self.struct_id) and tif.is_udt():
-        raw_txt = idc.GetLocalType(tif.get_ordinal(), idc.PRTYPE_1LINE)
-            l_idx = raw_txt.find('{')
-            r_idx = raw_txt.find('}')
-            segs = raw_txt[l_idx+1:r_idx].split(';')
-            if len(segs):
-                contents.append('')
-            for s in segs:
-                contents.append('    %s;' % s)
+            # IDA 9.x: Use ida_typeinf.tinfo_t instead of ida_struct.get_struc
+            tif = ida_typeinf.tinfo_t()
+            if tif.get_type_by_tid(self.struct_id) and tif.is_udt():
+                raw_txt = idc.GetLocalType(tif.get_ordinal(), idc.PRTYPE_1LINE)
+
+                l_idx = raw_txt.find('{')
+                r_idx = raw_txt.find('}')
+                segs = raw_txt[l_idx + 1:r_idx].split(';')
+
+                if len(segs):
+                    contents.append('')
+
+                for s in segs:
+                    contents.append('    %s;' % s)
 
         contents.append('};\n')
 
@@ -451,8 +469,9 @@ class Method(object):
     def get_signature(self, include_return_type=True, include_owner=True):
         return Method.s_make_signature(self.owner if include_owner else None, self.name, self.args, self.is_const, self.return_type if include_return_type else '')
 
-    def get_mangled(self):
-        return itanium_mangler.mangle_function(self.get_signature(), database.get().typedefs, self.ctor_type, self.dtor_type)  # throws excption when invalid
+    # Why redefine?
+    #def get_mangled(self):
+    #    return itanium_mangler.mangle_function(self.get_signature(), database.get().typedefs, self.ctor_type, self.dtor_type)  # throws excption when invalid
 
     def copy_signature(self, other):
         if (other.owner is not None) and (other.name == '~' + other.owner.name):

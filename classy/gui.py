@@ -1,14 +1,15 @@
 from PySide6 import QtWidgets, QtCore
 try:
-  from PySide6 import shiboken6
+    from PySide6 import shiboken6
 except ImportError:
-  shiboken6 = None
+    shiboken6 = None
 import idaapi
 import idc
 
 import classy.util as util
 import classy.database as database
 import classy.database_entries as database_entries
+
 from classy.signature_dialog import SignatureDialog
 from classy.choose_struct_dialog import ChooseStructDialog
 
@@ -70,10 +71,17 @@ class ClassyGui(idaapi.PluginForm):
 
     def update_fields(self):
         self.reload_tree()
+
+        if not hasattr(self, "class_edit") or self.class_tree is None:
+            return
+
         self.class_edit.update_fields()
 
     def reload_tree(self):
         db = database.get()
+
+        if not hasattr(self, "class_tree") or self.class_tree is None:
+            return
 
         self.items_by_class = {}
         self.class_tree.clear()
@@ -113,18 +121,24 @@ class ClassyGui(idaapi.PluginForm):
             return
 
         c = item.data(0, QtCore.Qt.UserRole)
-        if type(c) != database_entries.Class:
+        if type(c) is not database_entries.Class:
             return
 
-        if not util.ask_yes_no('Do you really want to remove the class "%s"? All methods and new virtual methods will be unlinked' % c.name, False):
+        if not util.ask_yes_no(
+            'Do you really want to remove the class "%s"? All methods and new virtual methods will be unlinked' % c.name,
+            False
+        ):
             return
 
         try:
             c.unlink()
             del self.items_by_class[c]
-      if shiboken6:
-        shiboken6.delete(item)
+
+            if shiboken6:
+                shiboken6.delete(item)
+
             idaapi.refresh_idaview_anyway()
+
         except ValueError as e:
             idaapi.warning(str(e))
 
@@ -142,7 +156,7 @@ class ClassyGui(idaapi.PluginForm):
             return
 
         c = item.data(0, QtCore.Qt.UserRole)
-        if type(c) != database_entries.Class:
+        if type(c) is not database_entries.Class:
             return
 
         path = QtWidgets.QFileDialog.getSaveFileName(None,
@@ -161,7 +175,7 @@ class ClassyGui(idaapi.PluginForm):
             return
 
         c = item.data(0, QtCore.Qt.UserRole)
-        if type(c) != database_entries.Class:
+        if type(c) is not database_entries.Class:
             return
 
         QtWidgets.QApplication.clipboard().setText(c.generate_cpp_definition())
@@ -172,7 +186,7 @@ class ClassyGui(idaapi.PluginForm):
             self.class_edit.set_edit_class(None)
         else:
             c = item.data(0, QtCore.Qt.UserRole)
-            if type(c) == database_entries.Class:
+            if type(c) is database_entries.Class:
                 self.class_edit.set_edit_class(c)
             else:
                 self.class_edit.set_edit_class(None)
@@ -351,7 +365,7 @@ class ClassWidget(QtWidgets.QWidget):
         db = database.get()
         if dlg.struct_id in db.classes_by_struct_id:
             idaapi.warning('The struct "%s" is already linked to the class "%s"' %
-                           (idc.get_struc_name(dlg.struct_id), b.classes_by_struct_id[dlg.struct_id]))
+                           (idc.get_struc_name(dlg.struct_id), db.classes_by_struct_id[dlg.struct_id]))
             return
 
         delete_orphaned = False
@@ -460,7 +474,7 @@ class ClassWidget(QtWidgets.QWidget):
         existing_method = None
         if sel_ea in db.known_methods:
             existing_method = db.known_methods[sel_ea]
-            if type(existing_method) != database_entries.Method:
+            if type(existing_method) is not database_entries.Method:
                 idaapi.warning("Cannot unlink function that is in a VTable")
                 return
 
@@ -485,8 +499,6 @@ class ClassWidget(QtWidgets.QWidget):
         self.update_fields()
 
     def handle_remove_method(self):
-        db = database.get()
-
         if self.edit_class is None:
             return
 
@@ -495,7 +507,7 @@ class ClassWidget(QtWidgets.QWidget):
             return
 
         m = row_item.data(QtCore.Qt.UserRole)
-        if type(m) != database_entries.Method or m not in self.edit_class.methods:
+        if type(m) is not database_entries.Method or m not in self.edit_class.methods:
             return
 
         m.unlink()
@@ -507,7 +519,7 @@ class ClassWidget(QtWidgets.QWidget):
             return
 
         m = self.methods.item(row, 0).data(QtCore.Qt.UserRole)
-        if type(m) != database_entries.Method or m not in self.edit_class.methods:
+        if type(m) is not database_entries.Method or m not in self.edit_class.methods:
             return
 
         elif column == 0:       # Go to address
